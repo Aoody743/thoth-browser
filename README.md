@@ -32,6 +32,6 @@ See [UPSTREAM.md](UPSTREAM.md) for the imported revision and update procedure. A
 
 ## Credits and license
 
-Thoth Browser builds on the work of the Ladybird developers. Existing copyright notices and the [BSD 2-Clause license](LICENSE) are retained. Third-party dependencies retain their respective licenses.
+Thoth Browser builds on the work of the Ladybird developers and is released under the [BSD 2-Clause license](LICENSE). Existing upstream copyright notices are retained, and Thoth-specific contributions are covered by the project copyright notice. Third-party dependencies retain their respective licenses.
 
 Thoth Browser is an independent project and is not an official Ladybird or Zen Browser release.
