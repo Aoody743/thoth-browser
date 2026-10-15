@@ -1,54 +1,37 @@
-# Ladybird
+# Thoth Browser
 
-[Ladybird](https://ladybird.org) is a truly independent web browser, using a novel engine based on web standards.
+An experimental desktop browser project based on [Ladybird](https://github.com/LadybirdBrowser/ladybird), exploring a [Zen Browser](https://github.com/zen-browser/desktop)-inspired interface.
 
-> [!IMPORTANT]
-> Ladybird is in a pre-alpha state, and only suitable for use by developers
->
+## Current status
 
-## Features
+This repository is at the initial setup stage. It contains Ladybird's source code and full default-branch commit history. The application currently uses Ladybird's existing interface and branding; the Thoth-specific interface has not been implemented.
 
-We aim to build a complete, usable browser for the modern web.
+The intended first milestone is a macOS prototype with:
 
-Ladybird uses a multi-process architecture with a main UI process, several WebContent renderer processes,
-an ImageDecoder process, and a RequestServer process.
+- A refined vertical tab sidebar.
+- Workspaces and pinned tabs.
+- Split-view browsing.
+- Session persistence.
+- A tested process for following upstream Ladybird updates.
 
-Image decoding and network connections are done out of process to be more robust against malicious content.
-Each tab has its own renderer process, which is sandboxed from the rest of the system.
+These are planned features, not capabilities added by this repository yet. Zen is a design reference; no Zen source code has been imported.
 
-At the moment, many core library support components are inherited from SerenityOS:
+## Build and run
 
-- LibWeb: Web rendering engine
-- LibJS: JavaScript engine
-- LibWasm: WebAssembly implementation
-- LibCrypto/LibTLS: Cryptography primitives and Transport Layer Security
-- LibHTTP: HTTP/1.1 client
-- LibGfx: 2D Graphics Library, Image Decoding and Rendering
-- LibUnicode: Unicode and locale support
-- LibMedia: Audio and video playback
-- LibCore: Event loop, OS abstraction layer
-- LibIPC: Inter-process communication
+Follow the retained [Ladybird build instructions](Documentation/BuildInstructionsLadybird.md). The upstream source overview is preserved in [README.upstream.md](README.upstream.md).
 
-## How do I build and run this?
+## Upstream development
 
-See [build instructions](Documentation/BuildInstructionsLadybird.md) for information on how to build Ladybird.
+This is an independent GitHub repository. Its relationship to Ladybird is recorded in Git history and documentation rather than GitHub's fork network.
 
-Ladybird runs on Linux, macOS, Windows (with WSL2), and many other \*Nixes.
+- `main`: Thoth Browser development.
+- `ladybird-upstream`: the unmodified Ladybird revision used to initialize the project.
+- `upstream` Git remote: `https://github.com/LadybirdBrowser/ladybird.git`.
 
-## How do I read the documentation?
+See [UPSTREAM.md](UPSTREAM.md) for the imported revision and update procedure. Automated synchronization and Thoth-specific CI have not been configured. GitHub Actions are initially disabled so inherited upstream workflows do not run unintentionally.
 
-Code-related documentation can be found in the [documentation](Documentation/) folder.
+## Credits and license
 
-## Get in touch and participate!
+Thoth Browser builds on the work of the Ladybird developers. Existing copyright notices and the [BSD 2-Clause license](LICENSE) are retained. Third-party dependencies retain their respective licenses.
 
-Join [our Discord server](https://discord.gg/nvfjVJ4Svh) to participate in issue and development discussions.
-
-Please read [Getting involved with Ladybird](Documentation/GettingStartedContributing.md) if you're new to Ladybird and want to help.
-
-Before opening an issue, please see the [issue policy](CONTRIBUTING.md#issue-policy) and the [detailed issue-reporting guidelines](ISSUES.md).
-
-The project participation guidelines can be found in [`CONTRIBUTING.md`](CONTRIBUTING.md).
-
-## License
-
-Ladybird is licensed under a 2-clause BSD license.
+Thoth Browser is an independent project and is not an official Ladybird or Zen Browser release.
