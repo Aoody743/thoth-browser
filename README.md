@@ -6,6 +6,8 @@
 
 <p align="center"><em>A quieter, more considered place to browse.</em></p>
 
+<p align="center"><a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a></p>
+
 <p align="center">
   <a href="https://github.com/Aoody743/thoth-browser/releases"><img src="https://img.shields.io/badge/preview-alpha%202.0-c49b59" alt="Preview alpha 2.0"></a>
   <img src="https://img.shields.io/badge/macOS-14.4%2B-252c35" alt="macOS 14.4 or later">
