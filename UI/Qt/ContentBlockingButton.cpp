@@ -7,6 +7,7 @@
 #include <UI/Qt/ChromeStyle.h>
 #include <UI/Qt/ContentBlockingButton.h>
 #include <UI/Qt/StringUtils.h>
+#include <UI/Qt/Thoth/Appearance.h>
 
 #include <QPainter>
 #include <QStyleOptionToolButton>
@@ -62,7 +63,7 @@ void ContentBlockingButton::paintEvent(QPaintEvent*)
         painter.setOpacity(0.45);
 
     auto logo_rect = QRect((width() - 20) / 2, (height() - 20) / 2, 20, 20);
-    m_logo.paint(&painter, logo_rect);
+    Thoth::brand_logo_icon(ChromeStyle::is_dark(palette())).paint(&painter, logo_rect);
     painter.restore();
 
     auto badge = badge_text();

@@ -22,12 +22,14 @@ private:
     void complete_first_run(JsonValue const&);
 
     void set_new_tab_page_url(JsonValue const&);
+    void set_interface_language(JsonValue const&);
     void set_languages(JsonValue const&);
     void set_appearance(JsonValue const&);
     void set_content_settings(JsonValue const&);
     void set_tab_settings(JsonValue const&);
     void set_browsing_behavior(JsonValue const&);
     void set_config_variable(JsonValue const&);
+    void set_user_agent_preset(JsonValue const&);
 
     void load_available_engines();
     void set_search_engine_settings(JsonValue const&);

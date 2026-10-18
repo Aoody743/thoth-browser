@@ -24,7 +24,7 @@ newTabPageURL.addEventListener("change", () => {
 });
 
 newTabPageURLReset.addEventListener("click", () => {
-    newTabPageURL.value = "about:newtab";
+    newTabPageURL.value = "https://limestart.cn";
     newTabPageURL.dispatchEvent(new Event("change"));
 });
 

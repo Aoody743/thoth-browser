@@ -1,0 +1,211 @@
+/*
+ * Copyright (c) 2026-present, the Ladybird developers.
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+:root {
+    --about-ink: #29262e;
+    --about-muted: #77717d;
+    --about-paper: #fbf8f1;
+    --about-panel: #fffdf8;
+    --about-line: #e9e1d5;
+    --about-accent: #9c654b;
+    --about-accent-wash: #f3e9df;
+    --about-shadow: 0 28px 90px rgba(66, 52, 42, 0.11), 0 2px 8px rgba(66, 52, 42, 0.04);
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --about-ink: #eee9e2;
+        --about-muted: #aaa29b;
+        --about-paper: #19191c;
+        --about-panel: #222124;
+        --about-line: #3b3738;
+        --about-accent: #d9a589;
+        --about-accent-wash: #3b2e2b;
+        --about-shadow: 0 28px 90px rgba(0, 0, 0, 0.32), 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+}
+
+html {
+    min-height: 100%;
+    background: var(--about-paper);
+}
+
+body {
+    display: grid;
+    min-height: 100vh;
+    max-width: none;
+    place-items: center;
+    padding: 44px 28px;
+    color: var(--about-ink);
+    background:
+        radial-gradient(ellipse at 12% 14%, rgba(205, 169, 142, 0.13), transparent 32%),
+        radial-gradient(ellipse at 90% 84%, rgba(159, 154, 184, 0.12), transparent 34%),
+        var(--about-paper);
+}
+
+.about-frame {
+    width: min(100%, 760px);
+    padding: clamp(34px, 7vw, 68px);
+    border: 1px solid var(--about-line);
+    border-radius: 30px;
+    background:
+        radial-gradient(ellipse at 100% 0%, rgba(201, 174, 150, 0.09), transparent 39%),
+        var(--about-panel);
+    box-shadow: var(--about-shadow);
+}
+
+.about-brand {
+    display: flex;
+    align-items: center;
+    gap: 23px;
+}
+
+.about-mark {
+    display: grid;
+    width: 92px;
+    height: 92px;
+    flex: 0 0 92px;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid rgba(142, 112, 87, 0.12);
+    border-radius: 25px;
+    background: #f6f0e3;
+    box-shadow: 0 10px 30px rgba(96, 72, 54, 0.12);
+}
+
+.about-mark picture,
+.about-mark img {
+    display: block;
+    width: 92px;
+    height: 92px;
+    margin: 0;
+    border-radius: 28%;
+    object-fit: contain;
+}
+
+@media (prefers-color-scheme: dark) {
+    .about-mark {
+        border-color: rgba(239, 210, 188, 0.1);
+        background: #182330;
+    }
+}
+
+.about-eyebrow {
+    margin: 0 0 7px;
+    color: var(--about-accent);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+}
+
+.about-copy h1 {
+    margin: 0;
+    color: var(--about-ink);
+    font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+    font-size: clamp(32px, 5vw, 43px);
+    font-weight: 400;
+    letter-spacing: -0.045em;
+    line-height: 1.12;
+}
+
+.about-subtitle {
+    margin: 8px 0 0;
+    color: var(--about-muted);
+    font-size: 14px;
+}
+
+.about-rule {
+    height: 1px;
+    margin: 34px 0 10px;
+    background: var(--about-line);
+}
+
+.about-feature {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    align-items: baseline;
+    gap: 12px;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--about-line);
+}
+
+.feature-number {
+    color: var(--about-accent);
+    font-family: Georgia, "Iowan Old Style", serif;
+    font-size: 14px;
+}
+
+.about-feature h2 {
+    margin: 0;
+    color: var(--about-ink);
+    font-size: 14px;
+    font-weight: 650;
+}
+
+.about-feature p {
+    margin: 3px 0 0;
+    color: var(--about-muted);
+    font-size: 12px;
+}
+
+.about-version {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding-top: 20px;
+    color: var(--about-muted);
+    font-size: 11px;
+}
+
+.about-version strong {
+    color: var(--about-ink);
+    font-weight: 600;
+}
+
+.about-platform {
+    padding-left: 10px;
+    margin-left: auto;
+    border-left: 1px solid var(--about-line);
+}
+
+@media (max-width: 520px) {
+    body {
+        padding: 16px;
+    }
+
+    .about-frame {
+        padding: 30px 23px;
+        border-radius: 23px;
+    }
+
+    .about-brand {
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .about-mark,
+    .about-mark picture,
+    .about-mark img {
+        width: 70px;
+        height: 70px;
+    }
+
+    .about-mark {
+        flex-basis: 70px;
+        border-radius: 20px;
+    }
+
+    .about-rule {
+        margin-top: 26px;
+    }
+}

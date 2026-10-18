@@ -2,9 +2,11 @@
 <html lang="en">
     <head>
         <title>Downloads</title>
-        <link rel="icon" type="image/png" href="resource://icons/48x48/app-browser.png" />
+        <link rel="icon" type="image/svg+xml" href="resource://icons/thoth-mark-light.svg" media="(prefers-color-scheme: light)" />
+        <link rel="icon" type="image/svg+xml" href="resource://icons/thoth-mark-dark.svg" media="(prefers-color-scheme: dark)" />
         <link rel="stylesheet" type="text/css" href="resource://ladybird/ladybird.css" />
         <link rel="stylesheet" type="text/css" href="resource://ladybird/about-pages/webui.css" />
+        <script type="module" src="resource://ladybird/about-pages/interface-language.js"></script>
         <style>
             @media (prefers-color-scheme: light) {
                 :root {
@@ -206,8 +208,8 @@
     <body>
         <header>
             <picture>
-                <source srcset="resource://icons/128x128/app-browser.png" media="(prefers-color-scheme: dark)" />
-                <img src="resource://icons/128x128/app-browser-dark.png" />
+                <source type="image/svg+xml" srcset="resource://icons/thoth-mark-dark.svg" media="(prefers-color-scheme: dark)" />
+                <img src="resource://icons/thoth-mark-light.svg" alt="Thoth Browser" />
             </picture>
             <h1>Downloads</h1>
         </header>

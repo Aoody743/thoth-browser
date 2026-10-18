@@ -53,6 +53,14 @@ bool is_using_dark_system_theme(QWidget& widget)
 
 ErrorOr<int> ladybird_main(Main::Arguments arguments)
 {
+    for (auto argument : arguments.strings) {
+        if (argument == "--"sv)
+            break;
+        if (argument == "--version"sv) {
+            outln("Thoth Browser alpha2.0");
+            return 0;
+        }
+    }
     AK::set_rich_debug_enabled(true);
 
     if (auto result = WebView::CrashReportStore::the().initialize_browser_crash_handler(); result.is_error())
@@ -143,7 +151,8 @@ ErrorOr<int> ladybird_main(Main::Arguments arguments)
             configuration.y = last_position->y();
         }
         auto& window = app->new_window(browser_options.urls, configuration);
-        window.setWindowTitle("Ladybird");
+        window.setWindowTitle("Thoth Browser alpha2.0");
+        if (window.thoth_sidebar()) window.thoth_sidebar()->restore_session();
 
         app->offer_newest_pending_crash_report();
     }

@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: BSD-2-Clause
 
-"""Pack an installed Ladybird.app into a tarball such that it's runnable on a machine other than the one which built it.
+"""Pack an installed Thoth Browser.app into a tarball such that it's runnable on a machine other than the one which built it.
 
 Deploy the Qt frameworks and plugins the app uses into the bundle (with Qt's own macdeployqt); give every executable
 bundle-relative rpaths; drop absolute ones; copy in the libraries the bundle actually links (resolving each @rpath
@@ -19,7 +19,7 @@ leaves every binary with only the absolute rpaths it was built with (the vcpkg l
 for a sanitizer build, the compiler's runtime directory); leaves behind the dylibs it links from those directories; and
 "--strip" rewrites every executable after the build signed it — invalidating signatures.
 
-    Meta/package-macos-app-bundle.py --build-dir Build/release --install-dir /tmp/Install --output /tmp/Ladybird.tar.gz
+    Meta/package-macos-app-bundle.py --build-dir Build/release --install-dir /tmp/Install --output /tmp/Thoth-Browser.tar.gz
 """
 
 from __future__ import annotations
@@ -260,7 +260,7 @@ def resign(app: Path, build_directory: Path) -> list[str]:
     ladybird_helper_process), then the bundle as a whole, which signs the main executable and reseals the bundle over
     everything copied in."""
     executables_directory = app / "Contents" / "MacOS"
-    main_executable = executables_directory / "Ladybird"
+    main_executable = executables_directory / "Thoth Browser"
     resigned = []
     for library in bundle_binaries(app):
         if library.parent != executables_directory:
@@ -305,15 +305,15 @@ def main() -> int:
     parser.add_argument(
         "--install-dir", required=True, type=Path, help="the prefix `cmake --install --strip` installed into"
     )
-    parser.add_argument("--output", required=True, type=Path, help="the .tar.gz to write, holding Ladybird.app")
+    parser.add_argument("--output", required=True, type=Path, help="the .tar.gz to write, holding Thoth Browser.app")
     parser.add_argument(
         "--macdeployqt", type=Path, help="the macdeployqt to deploy Qt with (default: PATH, then Homebrew's Qt)"
     )
     args = parser.parse_args()
 
-    app = args.install_dir / "bundle" / "Ladybird.app"
-    built_app_binary = args.build_dir / "bin" / "Ladybird.app" / "Contents" / "MacOS" / "Ladybird"
-    if not (app / "Contents" / "MacOS" / "Ladybird").is_file():
+    app = args.install_dir / "bundle" / "Thoth Browser.app"
+    built_app_binary = args.build_dir / "bin" / "Thoth Browser.app" / "Contents" / "MacOS" / "Thoth Browser"
+    if not (app / "Contents" / "MacOS" / "Thoth Browser").is_file():
         sys.exit(f"error: no installed app bundle at {app}")
     if not built_app_binary.is_file():
         sys.exit(f"error: no built app binary at {built_app_binary}")

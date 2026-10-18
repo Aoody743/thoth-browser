@@ -823,6 +823,18 @@ void WebContentView::mouseMoveEvent(QMouseEvent* event)
 
 void WebContentView::mousePressEvent(QMouseEvent* event)
 {
+    // On macOS the page is backed by a native child surface, so a QWidget
+    // overlay cannot receive the top drag strip's mouse press. Keep that
+    // gesture available directly on the web view's empty top inset.
+    if (event->button() == Qt::MouseButton::LeftButton
+        && event->position().y() <= 28
+        && !is_node_picker_active()) {
+        if (auto* browser_window = qobject_cast<BrowserWindow*>(window()); browser_window && browser_window->start_window_move()) {
+            event->accept();
+            return;
+        }
+    }
+
     if (is_node_picker_active()) {
         if (event->button() == Qt::MouseButton::LeftButton) {
             auto position = node_picker_position_for(*event);
@@ -1259,7 +1271,7 @@ void WebContentView::set_crash_overlay_visible(bool visible)
         heading_layout->setContentsMargins(0, 0, 0, 0);
         heading_layout->setSpacing(CrashReportReviewWidget::item_spacing);
 
-        auto* title = CrashReportReviewWidget::create_title(tr("Ladybird flew off-course!"), heading);
+        auto* title = CrashReportReviewWidget::create_title(tr("Thoth Browser stopped unexpectedly"), heading);
 
         m_crash_overlay_url = new CrashOverlayUrlLabel(heading);
 
@@ -1371,7 +1383,7 @@ void WebContentView::show_crash_report_review(Optional<ByteString> const& hidden
         }
         reload();
     };
-    auto answered_message = is_hidden_crash ? tr("Part of Ladybird stopped unexpectedly.") : crash_screen_message();
+    auto answered_message = is_hidden_crash ? tr("Part of Thoth Browser stopped unexpectedly.") : crash_screen_message();
     m_crash_report_review->on_answered = [this, answered_message] {
         m_crash_overlay_message->setText(answered_message);
     };
@@ -1383,7 +1395,7 @@ void WebContentView::show_crash_report_review(Optional<ByteString> const& hidden
     m_crash_overlay_reload_button->hide();
     m_crash_overlay_url->hide();
     m_crash_overlay_message->setText(is_hidden_crash
-            ? tr("Part of Ladybird stopped unexpectedly. You can send us a crash report to help fix it.")
+            ? tr("Part of Thoth Browser stopped unexpectedly. You can send us a crash report to help fix it.")
             : tr("This page crashed. You can send us a crash report to help fix it."));
     m_crash_report_container->layout()->addWidget(m_crash_report_review);
     m_crash_report_container->show();

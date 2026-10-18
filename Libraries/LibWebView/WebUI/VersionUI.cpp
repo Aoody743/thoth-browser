@@ -24,8 +24,8 @@ void VersionUI::register_interfaces()
 
 void VersionUI::load_version_info()
 {
-    static NeverDestroyed<String> browser_name = String::from_utf8_without_validation({ BROWSER_NAME, __builtin_strlen(BROWSER_NAME) });
-    static NeverDestroyed<String> browser_version = String::from_utf8_without_validation({ BROWSER_VERSION, __builtin_strlen(BROWSER_VERSION) });
+    static NeverDestroyed<String> browser_name = "Thoth Browser"_string;
+    static NeverDestroyed<String> browser_version = "alpha2.0"_string;
     static NeverDestroyed<String> browser_commit = String::from_utf8_without_validation(LADYBIRD_COMMIT.bytes());
     static NeverDestroyed<String> arch = String::from_utf8_without_validation({ CPU_STRING, __builtin_strlen(CPU_STRING) });
     static NeverDestroyed<String> platform_name = String::from_utf8_without_validation({ OS_STRING, __builtin_strlen(OS_STRING) });

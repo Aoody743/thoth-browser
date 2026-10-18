@@ -3,19 +3,61 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="color-scheme" content="light dark" />
-        <title>About URLs</title>
-        <link rel="icon" type="image/png" href="resource://icons/48x48/app-browser.png" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Thoth Browser · About</title>
+        <link rel="icon" type="image/svg+xml" href="resource://icons/thoth-mark-light.svg" media="(prefers-color-scheme: light)" />
+        <link rel="icon" type="image/svg+xml" href="resource://icons/thoth-mark-dark.svg" media="(prefers-color-scheme: dark)" />
+        <link rel="stylesheet" href="resource://ladybird/about-pages/webui.css" />
+        <link rel="stylesheet" href="resource://ladybird/about-pages/about.css" />
+        <script type="module" src="resource://ladybird/about-pages/interface-language.js"></script>
     </head>
     <body>
-        <h1>List of About URLs</h1>
-        <ul>
-            <li><a href="about:about">about:about</a></li>
-            <li><a href="about:blocking">about:blocking</a></li>
-            <li><a href="about:bookmarks">about:bookmarks</a></li>
-            <li><a href="about:newtab">about:newtab</a></li>
-            <li><a href="about:settings">about:settings</a></li>
-            <li><a href="about:services">about:services</a></li>
-            <li><a href="about:version">about:version</a></li>
-        </ul>
+        <main class="about-frame">
+            <div class="about-brand">
+                <div class="about-mark">
+                    <picture>
+                        <source type="image/svg+xml" srcset="resource://icons/thoth-mark-dark.svg" media="(prefers-color-scheme: dark)" />
+                        <img src="resource://icons/thoth-mark-light.svg" alt="" />
+                    </picture>
+                </div>
+                <div class="about-copy">
+                    <p class="about-eyebrow">About Thoth</p>
+                    <h1>Thoth Browser</h1>
+                    <p class="about-subtitle">A calmer way to browse.</p>
+                </div>
+            </div>
+
+            <div class="about-rule"></div>
+
+            <section class="about-features" aria-label="Browser features">
+                <article class="about-feature">
+                    <span class="feature-number">01</span>
+                    <div>
+                        <h2>Workspaces</h2>
+                        <p>Keep pages grouped by context.</p>
+                    </div>
+                </article>
+                <article class="about-feature">
+                    <span class="feature-number">02</span>
+                    <div>
+                        <h2>Split view</h2>
+                        <p>Read two pages side by side.</p>
+                    </div>
+                </article>
+                <article class="about-feature">
+                    <span class="feature-number">03</span>
+                    <div>
+                        <h2>Privacy controls</h2>
+                        <p>Choose how ads and trackers are filtered.</p>
+                    </div>
+                </article>
+            </section>
+
+            <footer class="about-version">
+                <span>Version</span>
+                <strong>Alpha 2.0</strong>
+                <span class="about-platform">macOS</span>
+            </footer>
+        </main>
     </body>
 </html>

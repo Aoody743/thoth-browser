@@ -43,7 +43,7 @@ sudo_and_ask() {
 
 default_binary_path() {
     if [ "$(uname -s)" = "Darwin" ]; then
-        echo "${BUILD_DIR}/bin/Ladybird.app/Contents/MacOS"
+        echo "${BUILD_DIR}/bin/Thoth Browser.app/Contents/MacOS"
     else
         echo "${BUILD_DIR}/bin"
     fi

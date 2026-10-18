@@ -2,30 +2,38 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
     <dict>
-        <key>NSPrincipalClass</key>
-        <string>NSApplication</string>
         <key>CFBundleIconFile</key>
         <string>app_icon.icns</string>
         <key>CFBundlePackageType</key>
         <string>APPL</string>
+        <key>CFBundleDisplayName</key>
+        <string>Thoth Browser</string>
+        <key>CFBundleName</key>
+        <string>Thoth Browser</string>
+        <key>CFBundleShortVersionString</key>
+        <string>2.0.0</string>
+        <key>CFBundleVersion</key>
+        <string>2.0.0</string>
         <key>CFBundleGetInfoString</key>
-        <string>Ladybird</string>
+        <string>Thoth Browser</string>
         <key>CFBundleSignature</key>
         <string></string>
         <key>CFBundleExecutable</key>
-        <string>Ladybird</string>
+        <string>Thoth Browser</string>
         <key>CFBundleIdentifier</key>
-        <string>org.ladybird.Ladybird</string>
+        <string>thoth.aoody</string>
+        <key>LSMinimumSystemVersion</key>
+        <string>@THOTH_MACOS_DEPLOYMENT_TARGET@</string>
         <key>NSPrincipalClass</key>
         <string>NSApplication</string>
         <key>NSHighResolutionCapable</key>
         <string>True</string>
         <key>NSLocationUsageDescription</key>
-        <string>Ladybird needs your location to provide it to websites that request geolocation access.</string>
+        <string>Thoth Browser needs your location to provide it to websites that request geolocation access.</string>
         <key>NSLocationWhenInUseUsageDescription</key>
-        <string>Ladybird needs your location to provide it to websites that request geolocation access.</string>
+        <string>Thoth Browser needs your location to provide it to websites that request geolocation access.</string>
         <key>NSMicrophoneUsageDescription</key>
-        <string>Ladybird needs access to your microphone to provide audio capture to websites that request it.</string>
+        <string>Thoth Browser needs access to your microphone to provide audio capture to websites that request it.</string>
         <key>CFBundleDocumentTypes</key>
         <array>
             <dict>

@@ -6,6 +6,7 @@
 
 #include <LibIPC/Transport.h>
 #include <LibIPC/TransportHandle.h>
+#include <LibWebView/Application.h>
 #include <LibWebView/WebContentClient.h>
 #include <LibWebView/WebUI.h>
 #include <LibWebView/WebUI/BookmarksUI.h>
@@ -88,6 +89,9 @@ WebUI::WebUI(WebContentClient& client, Web::PageId page_id, NonnullOwnPtr<IPC::T
     , m_page_id(page_id)
     , m_host(move(host))
 {
+    register_interface("loadInterfaceLanguage"sv, [this](auto const&) {
+        async_send_message("interfaceLanguage"sv, Application::settings().interface_language().view());
+    });
 }
 
 WebUI::~WebUI() = default;

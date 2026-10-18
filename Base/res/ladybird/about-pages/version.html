@@ -3,161 +3,75 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="color-scheme" content="light dark" />
-        <link rel="icon" type="image/png" href="resource://icons/48x48/app-browser.png" />
-        <link rel="stylesheet" type="text/css" href="resource://ladybird/ladybird.css" />
-        <link rel="stylesheet" type="text/css" href="resource://ladybird/about-pages/webui.css" />
-        <style>
-            @media (prefers-color-scheme: light) {
-                :root {
-                    --about-border-color: #dcdde1;
-                    --about-muted-color: #606873;
-                    --about-value-background-color: white;
-                }
-            }
-
-            @media (prefers-color-scheme: dark) {
-                :root {
-                    --about-border-color: #3d3d3d;
-                    --about-muted-color: #a0a0a0;
-                    --about-value-background-color: #1d1d1d;
-                }
-            }
-
-            .summary-card .card-body {
-                display: flex;
-                align-items: center;
-                gap: 16px;
-            }
-
-            .summary-card img {
-                width: 72px;
-                height: 72px;
-                margin: 0;
-            }
-
-            .summary-title {
-                margin: 0 0 6px 0;
-
-                font-size: 24px;
-                font-weight: 600;
-            }
-
-            .summary-version {
-                color: var(--about-muted-color);
-
-                font-size: 14px;
-            }
-
-            .details {
-                display: flex;
-                flex-direction: column;
-            }
-
-            .detail-row {
-                display: flex;
-                align-items: center;
-                gap: 16px;
-
-                padding: 14px 0;
-                border-bottom: 1px solid var(--about-border-color);
-            }
-
-            .detail-row:first-child {
-                padding-top: 0;
-            }
-
-            .detail-row:last-child {
-                padding-bottom: 0;
-                border-bottom: none;
-            }
-
-            .detail-label {
-                width: 150px;
-                flex-shrink: 0;
-
-                color: var(--about-muted-color);
-
-                font-size: 14px;
-            }
-
-            .detail-value {
-                background-color: var(--about-value-background-color);
-
-                flex: 1;
-                min-width: 0;
-                border: 1px solid var(--about-border-color);
-                border-radius: 4px;
-                padding: 8px 10px;
-
-                font-family: monospace;
-                font-size: 13px;
-                overflow-wrap: break-word;
-            }
-
-            @media (max-width: 600px) {
-                .summary-card .card-body {
-                    align-items: flex-start;
-                }
-
-                .detail-row {
-                    flex-direction: column;
-                    gap: 8px;
-                }
-
-                .detail-label {
-                    width: auto;
-                }
-            }
-        </style>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>About Thoth Browser</title>
+        <link rel="icon" type="image/svg+xml" href="resource://icons/thoth-mark-light.svg" media="(prefers-color-scheme: light)" />
+        <link rel="icon" type="image/svg+xml" href="resource://icons/thoth-mark-dark.svg" media="(prefers-color-scheme: dark)" />
+        <link rel="stylesheet" href="resource://ladybird/about-pages/about.css" />
+        <link rel="stylesheet" href="resource://ladybird/about-pages/version.css" />
+        <script type="module" src="resource://ladybird/about-pages/interface-language.js"></script>
     </head>
     <body>
-        <header>
-            <picture>
-                <source srcset="resource://icons/128x128/app-browser.png" media="(prefers-color-scheme: dark)" />
-                <img src="resource://icons/128x128/app-browser-dark.png" />
-            </picture>
-            <h1 id="browser-name"></h1>
-        </header>
-
-        <h3 class="card-title">Build Details</h3>
-        <div class="card">
-            <div class="card-body details">
-                <div class="detail-row">
-                    <div class="detail-label">Version</div>
-                    <div id="browser-version" class="detail-value"></div>
+        <main class="version-page">
+            <div class="about-brand">
+                <div class="about-mark">
+                    <picture>
+                        <source type="image/svg+xml" srcset="resource://icons/thoth-mark-dark.svg" media="(prefers-color-scheme: dark)" />
+                        <img src="resource://icons/thoth-mark-light.svg" alt="" />
+                    </picture>
                 </div>
-                <div class="detail-row">
-                    <div class="detail-label">Commit</div>
-                    <div id="browser-commit" class="detail-value"></div>
-                </div>
-                <div class="detail-row">
-                    <div class="detail-label">Architecture</div>
-                    <div id="arch" class="detail-value"></div>
-                </div>
-                <div class="detail-row">
-                    <div class="detail-label">Operating System</div>
-                    <div id="platform-name" class="detail-value"></div>
-                </div>
-                <div class="detail-row">
-                    <div class="detail-label">User Agent</div>
-                    <div id="user-agent" class="detail-value"></div>
+                <div class="about-copy">
+                    <p class="about-eyebrow">About Thoth</p>
+                    <h1 id="browser-name">Thoth Browser</h1>
+                    <p class="about-subtitle"><span>Version</span> <strong id="browser-version"></strong></p>
                 </div>
             </div>
-        </div>
 
-        <h3 class="card-title">Runtime</h3>
-        <div class="card">
-            <div class="card-body details">
-                <div class="detail-row">
-                    <div class="detail-label">Command Line</div>
-                    <div id="command-line" class="detail-value"></div>
+            <div class="about-rule"></div>
+
+            <section class="version-group" aria-labelledby="build-heading">
+                <div class="version-heading">
+                    <span class="feature-number">01</span>
+                    <h2 id="build-heading">Build details</h2>
                 </div>
-                <div class="detail-row">
-                    <div class="detail-label">Executable Path</div>
-                    <div id="executable-path" class="detail-value"></div>
+                <dl class="version-list">
+                    <div class="version-row">
+                        <dt>Commit</dt>
+                        <dd id="browser-commit"></dd>
+                    </div>
+                    <div class="version-row">
+                        <dt>Architecture</dt>
+                        <dd id="arch"></dd>
+                    </div>
+                    <div class="version-row">
+                        <dt>Operating system</dt>
+                        <dd id="platform-name"></dd>
+                    </div>
+                    <div class="version-row">
+                        <dt>User agent</dt>
+                        <dd id="user-agent"></dd>
+                    </div>
+                </dl>
+            </section>
+
+            <section class="version-group" aria-labelledby="runtime-heading">
+                <div class="version-heading">
+                    <span class="feature-number">02</span>
+                    <h2 id="runtime-heading">Runtime</h2>
                 </div>
-            </div>
-        </div>
+                <dl class="version-list">
+                    <div class="version-row">
+                        <dt>Command line</dt>
+                        <dd id="command-line"></dd>
+                    </div>
+                    <div class="version-row">
+                        <dt>Application path</dt>
+                        <dd id="executable-path"></dd>
+                    </div>
+                </dl>
+            </section>
+        </main>
+
         <script type="module">
             const browserName = document.querySelector("#browser-name");
             const browserVersion = document.querySelector("#browser-version");
@@ -169,16 +83,15 @@
             const executablePath = document.querySelector("#executable-path");
 
             function renderVersionInfo(versionInfo) {
-                document.title = `About ${versionInfo?.browserName}`;
-
-                browserName.innerText = document.title;
-                browserVersion.innerText = versionInfo?.browserVersion;
-                browserCommit.innerText = versionInfo?.browserCommit;
-                arch.innerText = versionInfo?.arch;
-                platformName.innerText = versionInfo?.platformName;
+                const name = versionInfo?.browserName || "Thoth Browser";
+                browserName.innerText = name;
+                browserVersion.innerText = versionInfo?.browserVersion || "—";
+                browserCommit.innerText = versionInfo?.browserCommit || "—";
+                arch.innerText = versionInfo?.arch || "—";
+                platformName.innerText = versionInfo?.platformName || "—";
                 userAgent.innerText = navigator.userAgent;
-                commandLine.innerText = versionInfo?.commandLine;
-                executablePath.innerText = versionInfo?.executablePath;
+                commandLine.innerText = versionInfo?.commandLine || "—";
+                executablePath.innerText = versionInfo?.executablePath || "—";
             }
 
             document.addEventListener("WebUILoaded", () => {

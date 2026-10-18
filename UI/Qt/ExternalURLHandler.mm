@@ -84,7 +84,7 @@ void resolve_external_url_handler(URL::URL const& url, WebView::ExternalURLHandl
 
     bool is_ladybird = false;
     if (auto* bundle_identifier = [[NSBundle bundleWithURL:application_url] bundleIdentifier]; bundle_identifier != nil) {
-        is_ladybird = [bundle_identifier caseInsensitiveCompare:@"org.ladybird.Ladybird"] == NSOrderedSame;
+        is_ladybird = [bundle_identifier caseInsensitiveCompare:@"thoth.aoody"] == NSOrderedSame;
     }
 
     if (!is_ladybird) {

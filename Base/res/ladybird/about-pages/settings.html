@@ -2,13 +2,33 @@
 <html>
     <head>
         <title>Settings</title>
-        <link rel="icon" type="image/png" href="resource://icons/48x48/app-browser.png" />
+        <link rel="icon" type="image/svg+xml" href="resource://icons/thoth-mark-light.svg" media="(prefers-color-scheme: light)" />
+        <link rel="icon" type="image/svg+xml" href="resource://icons/thoth-mark-dark.svg" media="(prefers-color-scheme: dark)" />
         <link rel="stylesheet" type="text/css" href="resource://ladybird/ladybird.css" />
         <link rel="stylesheet" type="text/css" href="resource://ladybird/about-pages/webui.css" />
+        <script type="module" src="resource://ladybird/about-pages/interface-language.js"></script>
         <style>
             body {
+                display: grid;
+                grid-template-columns: 210px minmax(0, 1fr);
+                grid-template-rows: auto auto minmax(0, 1fr);
+                column-gap: 28px;
+                max-width: 1120px;
+                padding: 30px 34px 64px;
                 font-size: 14px;
                 line-height: 1.5;
+            }
+
+            header {
+                grid-column: 1 / -1;
+                margin-bottom: 10px;
+            }
+
+            .settings-intro {
+                grid-column: 1 / -1;
+                margin: -4px 0 22px;
+                color: var(--secondary-text-color);
+                font-size: 13px;
             }
 
             hr {
@@ -335,26 +355,33 @@
             }
 
             .tab-bar {
+                grid-column: 1;
+                grid-row: 3;
+                align-self: start;
+                position: sticky;
+                top: 24px;
                 display: flex;
+                flex-direction: column;
                 gap: 4px;
-
-                margin-bottom: 20px;
-                border-bottom: 1px solid var(--border-color);
-
-                overflow-x: auto;
+                padding: 4px;
+                margin-bottom: 0;
+                background: var(--card-header-background-color);
+                border: 1px solid var(--border-color);
+                border-radius: 12px;
+                overflow: hidden;
             }
 
             .tab-button {
                 background: none;
                 border: none;
-                border-bottom: 3px solid transparent;
-
-                padding: 10px 16px;
+                border-radius: 8px;
+                padding: 10px 12px;
 
                 font-size: 14px;
                 font-weight: 500;
                 color: inherit;
                 opacity: 0.6;
+                text-align: left;
 
                 cursor: pointer;
                 white-space: nowrap;
@@ -365,16 +392,51 @@
             }
 
             .tab-button.active {
-                border-bottom-color: var(--accent);
+                background: var(--card-background-color);
+                box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
                 opacity: 1;
             }
 
+            .tab-panel > .card-title {
+                margin-top: 26px;
+                color: var(--secondary-text-color);
+                font-size: 11px;
+                font-weight: 700;
+                letter-spacing: 0.12em;
+                text-transform: uppercase;
+            }
+
+            .tab-panel > .card-title:first-child {
+                margin-top: 0;
+            }
+
             .tab-panel {
+                grid-column: 2;
+                grid-row: 3;
+                min-width: 0;
                 display: none;
             }
 
             .tab-panel.active {
                 display: block;
+            }
+
+            @media (max-width: 760px) {
+                body {
+                    display: block;
+                    padding: 22px 18px 48px;
+                }
+
+                .tab-bar {
+                    position: static;
+                    flex-direction: row;
+                    margin-bottom: 22px;
+                    overflow-x: auto;
+                }
+
+                .tab-button {
+                    text-align: center;
+                }
             }
 
             .expandable-list summary {
@@ -386,6 +448,75 @@
                 border-color: var(--accent);
                 outline: 2px solid var(--accent);
                 outline-offset: 1px;
+            }
+
+            .thoth-personalization {
+                display: grid;
+                gap: 14px;
+            }
+
+            .thoth-personalization > .description {
+                margin: -8px 0 4px;
+            }
+
+            .thoth-personalization-card .card-body {
+                display: grid;
+                gap: 16px;
+            }
+
+            .thoth-personalization-card h4 {
+                margin: 0;
+                font-size: 16px;
+            }
+
+            .thoth-personalization-card .description {
+                margin: 4px 0 0;
+            }
+
+            .thoth-palette-grid {
+                display: grid;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 8px;
+                margin-top: 12px;
+            }
+
+            .thoth-palette-choice {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                min-width: 0;
+                padding: 8px 10px;
+                color: var(--text-color);
+                background: var(--input-background-color);
+                border: 1px solid var(--border-color);
+                border-radius: 9px;
+                text-align: left;
+                cursor: pointer;
+            }
+
+            .thoth-palette-choice:hover {
+                border-color: var(--thoth-accent, var(--accent));
+            }
+
+            .thoth-palette-choice[aria-checked="true"] {
+                border-color: var(--thoth-accent, var(--accent));
+                box-shadow: 0 0 0 1px var(--thoth-accent, var(--accent));
+                background: color-mix(in srgb, var(--thoth-accent, var(--accent)) 9%, var(--input-background-color));
+            }
+
+            .thoth-palette-swatch {
+                flex: 0 0 16px;
+                width: 16px;
+                height: 16px;
+                border-radius: 50%;
+                background: var(--swatch);
+                box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-color) 18%, transparent);
+            }
+
+            @media (max-width: 700px) {
+                .thoth-palette-grid {
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                }
             }
 
             @media (max-width: 600px) {
@@ -407,14 +538,14 @@
     <body>
         <header>
             <picture>
-                <source srcset="resource://icons/128x128/app-browser.png" media="(prefers-color-scheme: dark)" />
-                <img src="resource://icons/128x128/app-browser-dark.png" />
+                <source type="image/svg+xml" srcset="resource://icons/thoth-mark-dark.svg" media="(prefers-color-scheme: dark)" />
+                <img src="resource://icons/thoth-mark-light.svg" alt="Thoth Browser" />
             </picture>
-            <h1>Ladybird Settings</h1>
+            <h1>Thoth Settings</h1>
         </header>
-
         <div class="tab-bar" role="tablist" aria-label="Settings categories">
             <button id="tab-button-general" class="tab-button active" data-tab="general" role="tab">General</button>
+            <button id="tab-button-personalization" class="tab-button" data-tab="personalization" role="tab">Personalization</button>
             <button id="tab-button-search" class="tab-button" data-tab="search" role="tab">Search</button>
             <button id="tab-button-permissions" class="tab-button" data-tab="permissions" role="tab">
                 Permissions
@@ -433,7 +564,7 @@
                     <div class="card-group inline-container">
                         <label for="new-tab-page-url">New tab page URL</label>
                         <div class="input-with-reset">
-                            <input id="new-tab-page-url" type="url" placeholder="about:newtab" />
+                            <input id="new-tab-page-url" type="url" placeholder="https://limestart.cn" />
                             <button id="new-tab-page-url-reset" class="input-reset-button" title="Restore default">
                                 &times;
                             </button>
@@ -452,6 +583,14 @@
                     <div class="card-group inline-container">
                         <label for="show-bookmarks-bar">Show bookmarks bar</label>
                         <input id="show-bookmarks-bar" type="checkbox" switch />
+                    </div>
+                    <div class="card-group inline-container">
+                        <label for="color-scheme">Browser appearance</label>
+                        <select id="color-scheme">
+                            <option value="system">Follow system</option>
+                            <option value="light">Light</option>
+                            <option value="dark">Dark</option>
+                        </select>
                     </div>
                     <div class="card-group inline-container">
                         <label for="enable-vertical-tabs">Use vertical tabs</label>
@@ -528,6 +667,77 @@
                     </div>
                     <p id="crash-reports-status" class="description" role="status" hidden></p>
                 </div>
+            </div>
+        </div>
+
+        <div class="tab-panel" id="tab-personalization">
+            <div class="thoth-personalization">
+                <section class="card thoth-personalization-card">
+                    <div class="card-body">
+                        <div>
+                            <h4>Interface language</h4>
+                            <p class="description">Choose the language used in browser controls and menus.</p>
+                        </div>
+                        <div class="card-group inline-container">
+                            <label for="interface-language">Language</label>
+                            <select id="interface-language">
+                                <option value="en">English</option>
+                                <option value="zh-CN">简体中文</option>
+                            </select>
+                        </div>
+                    </div>
+                </section>
+                <section class="card thoth-personalization-card">
+                    <div class="card-body">
+                        <div>
+                            <h4>Interface typeface</h4>
+                            <p class="description">Choose a character for browser labels, controls, and the sidebar.</p>
+                        </div>
+                        <div class="card-group inline-container">
+                            <label for="browser-ui-font">Typeface</label>
+                            <select id="browser-ui-font">
+                                <option value="system">System</option>
+                                <option value="bricolage">Bricolage Grotesque · expressive</option>
+                                <option value="space-grotesk">Space Grotesk · geometric</option>
+                                <option value="fraunces">Fraunces · soft serif</option>
+                            </select>
+                        </div>
+                    </div>
+                </section>
+                <section class="card thoth-personalization-card">
+                    <div class="card-body">
+                        <div>
+                            <h4>Interface icons</h4>
+                            <p class="description">Adjust the visual weight of browser controls and sidebar icons.</p>
+                        </div>
+                        <div class="card-group inline-container">
+                            <label for="browser-icon-weight">Icon weight</label>
+                            <select id="browser-icon-weight">
+                                <option value="fine">Fine line</option>
+                                <option value="balanced">Balanced</option>
+                                <option value="expressive">Expressive</option>
+                            </select>
+                        </div>
+                    </div>
+                </section>
+                <section class="card thoth-personalization-card">
+                    <div class="card-body">
+                        <div>
+                            <h4>Color palette</h4>
+                            <p class="description">Set the accent color for browser controls and highlights.</p>
+                        </div>
+                        <div id="browser-color-palettes" class="thoth-palette-grid" role="radiogroup" aria-label="Browser color palette">
+                            <button class="thoth-palette-choice" type="button" role="radio" data-palette="lavender" aria-checked="true"><span class="thoth-palette-swatch" style="--swatch: #7866a6"></span><span>Lavender</span></button>
+                            <button class="thoth-palette-choice" type="button" role="radio" data-palette="ocean" aria-checked="false"><span class="thoth-palette-swatch" style="--swatch: #4f778f"></span><span>Ocean</span></button>
+                            <button class="thoth-palette-choice" type="button" role="radio" data-palette="sage" aria-checked="false"><span class="thoth-palette-swatch" style="--swatch: #577b66"></span><span>Sage</span></button>
+                            <button class="thoth-palette-choice" type="button" role="radio" data-palette="rose" aria-checked="false"><span class="thoth-palette-swatch" style="--swatch: #9a657a"></span><span>Rose</span></button>
+                            <button class="thoth-palette-choice" type="button" role="radio" data-palette="sand" aria-checked="false"><span class="thoth-palette-swatch" style="--swatch: #92713f"></span><span>Sand</span></button>
+                            <button class="thoth-palette-choice" type="button" role="radio" data-palette="graphite" aria-checked="false"><span class="thoth-palette-swatch" style="--swatch: #687382"></span><span>Graphite</span></button>
+                            <button class="thoth-palette-choice" type="button" role="radio" data-palette="plum" aria-checked="false"><span class="thoth-palette-swatch" style="--swatch: #80577f"></span><span>Plum</span></button>
+                            <button class="thoth-palette-choice" type="button" role="radio" data-palette="terracotta" aria-checked="false"><span class="thoth-palette-swatch" style="--swatch: #a65f48"></span><span>Terracotta</span></button>
+                        </div>
+                    </div>
+                </section>
             </div>
         </div>
 
@@ -792,6 +1002,22 @@
         </div>
 
         <div class="tab-panel" id="tab-advanced">
+            <h3 class="card-title">Compatibility</h3>
+            <div class="card">
+                <div class="card-body">
+                    <div class="card-group inline-container">
+                        <label for="user-agent-preset">
+                            User agent
+                            <p class="description">Choose the browser identity sent to websites.</p>
+                        </label>
+                        <select id="user-agent-preset">
+                            <option value="">Default</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <h3 class="card-title">Configuration</h3>
             <div class="search-container">
                 <svg
                     class="search-icon"
@@ -969,6 +1195,8 @@
         <script src="resource://ladybird/about-pages/settings/search.js" type="module"></script>
         <script src="resource://ladybird/about-pages/settings/services.js" type="module"></script>
         <script src="resource://ladybird/about-pages/settings/tabs.js" type="module"></script>
+        <script src="resource://ladybird/about-pages/settings/ui-language.js" type="module"></script>
+        <script src="resource://ladybird/about-pages/settings/user-agent.js" type="module"></script>
 
         <script type="module">
             import { tabForDeepLink } from "resource://ladybird/about-pages/settings/dialog-deep-link.js";

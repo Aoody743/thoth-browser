@@ -65,8 +65,8 @@ void CrashReportNotifier::show_pending()
     m_anchor->installEventFilter(this);
 
     auto report_name = m_pending_report_name.release_value();
-    m_popover = new MessagePopover(anchor, CRASH_REPORT_POPOVER_WIDTH, tr("Ladybird flew off-course!"),
-        tr("Part of Ladybird stopped unexpectedly. You can send us a crash report to help fix it."), tr("Dismiss"),
+    m_popover = new MessagePopover(anchor, CRASH_REPORT_POPOVER_WIDTH, tr("Thoth Browser stopped unexpectedly"),
+        tr("Part of Thoth Browser stopped unexpectedly. You can send us a crash report to help fix it."), tr("Dismiss"),
         tr("Review report"));
     m_popover->setAttribute(Qt::WA_DeleteOnClose);
 

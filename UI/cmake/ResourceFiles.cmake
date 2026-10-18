@@ -38,15 +38,18 @@ list(TRANSFORM SITE_COMPATIBILITY_RESOURCES PREPEND "${LADYBIRD_SOURCE_DIR}/WebC
 
 set(ABOUT_PAGES
     about.html
+    about.css
     blocking.html
     bookmarks.html
     downloads.html
     history.html
+    interface-language.js
     newtab.html
     search-engine-controls.js
     settings.html
     services.html
     version.html
+    version.css
     webui.css
     welcome.css
     welcome.html
@@ -70,6 +73,8 @@ set(ABOUT_SETTINGS_RESOURCES
     search.js
     services.js
     tabs.js
+    user-agent.js
+    ui-language.js
 )
 list(TRANSFORM ABOUT_SETTINGS_RESOURCES PREPEND "${LADYBIRD_SOURCE_DIR}/Base/res/ladybird/about-pages/settings/")
 
@@ -146,6 +151,15 @@ endfunction()
 function(copy_resources_to_build base_directory bundle_target)
     add_custom_target("${bundle_target}_build_resource_files")
 
+    copy_resource_set(icons RESOURCES
+        "${LADYBIRD_SOURCE_DIR}/Base/res/icons/thoth.png"
+        "${LADYBIRD_SOURCE_DIR}/Base/res/icons/thoth-light.png"
+        "${LADYBIRD_SOURCE_DIR}/Base/res/icons/thoth-dark.png"
+        "${LADYBIRD_SOURCE_DIR}/Base/res/icons/thoth-mark-light.svg"
+        "${LADYBIRD_SOURCE_DIR}/Base/res/icons/thoth-mark-dark.svg"
+        DESTINATION ${base_directory} TARGET ${bundle_target}
+    )
+
     copy_resource_set(fonts RESOURCES ${FONTS}
         DESTINATION ${base_directory} TARGET ${bundle_target}
     )
@@ -212,6 +226,14 @@ function(copy_resources_to_build base_directory bundle_target)
 endfunction()
 
 function(install_ladybird_resources destination component)
+    install(FILES
+        "${LADYBIRD_SOURCE_DIR}/Base/res/icons/thoth.png"
+        "${LADYBIRD_SOURCE_DIR}/Base/res/icons/thoth-light.png"
+        "${LADYBIRD_SOURCE_DIR}/Base/res/icons/thoth-dark.png"
+        "${LADYBIRD_SOURCE_DIR}/Base/res/icons/thoth-mark-light.svg"
+        "${LADYBIRD_SOURCE_DIR}/Base/res/icons/thoth-mark-dark.svg"
+        DESTINATION "${destination}/icons" COMPONENT ${component}
+    )
     install(FILES ${FONTS} DESTINATION "${destination}/fonts" COMPONENT ${component})
     install(FILES ${16x16_ICONS} DESTINATION "${destination}/icons/16x16" COMPONENT ${component})
     install(FILES ${32x32_ICONS} DESTINATION "${destination}/icons/32x32" COMPONENT ${component})

@@ -30,10 +30,12 @@
 #include <UI/Qt/Menu.h>
 #include <UI/Qt/Popover.h>
 #include <UI/Qt/StringUtils.h>
+#include <UI/Qt/Thoth/Localization.h>
 #include <UI/Qt/WindowControlButton.h>
 
 #include <LibWebView/TabPerformanceMonitor.h>
 #include <QColorDialog>
+#include <QConicalGradient>
 #include <QFileDialog>
 #include <QFont>
 #include <QFontMetrics>
@@ -45,9 +47,12 @@
 #include <QMimeData>
 #include <QMimeDatabase>
 #include <QPainter>
+#include <QPainterPath>
+#include <QPainterPathStroker>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QResizeEvent>
+#include <QRegion>
 #include <QScrollArea>
 #include <QStyleOptionToolButton>
 #include <QStylePainter>
@@ -58,6 +63,56 @@
 namespace Ladybird {
 
 static constexpr auto WINDOW_DRAG_REGION_PROPERTY = "LadybirdWindowDragRegion";
+
+class TabLoadingOverlay final : public QWidget {
+public:
+    explicit TabLoadingOverlay(QWidget* parent)
+        : QWidget(parent)
+    {
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        setAttribute(Qt::WA_NoSystemBackground);
+        setAttribute(Qt::WA_TranslucentBackground);
+        hide();
+    }
+
+    void set_frame(int frame)
+    {
+        m_frame = frame;
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent*) override
+    {
+        if (!isVisible())
+            return;
+
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+
+        QPainterPath path;
+        path.addRoundedRect(QRectF(rect()).adjusted(2.5, 2.5, -2.5, -2.5), 11, 11);
+        QPainterPathStroker stroker;
+        stroker.setWidth(2.0);
+
+        auto highlight = palette().color(QPalette::Highlight);
+        highlight.setAlpha(150);
+        auto quiet = highlight;
+        quiet.setAlpha(18);
+        QConicalGradient gradient(rect().center(), -m_frame * 10.0);
+        gradient.setColorAt(0.0, highlight);
+        gradient.setColorAt(0.08, highlight);
+        gradient.setColorAt(0.22, quiet);
+        gradient.setColorAt(0.62, QColor(0, 0, 0, 0));
+        gradient.setColorAt(0.92, quiet);
+        gradient.setColorAt(1.0, highlight);
+
+        painter.fillPath(stroker.createStroke(path), gradient);
+    }
+
+private:
+    int m_frame { 0 };
+};
 
 class ToolbarButton : public QToolButton {
 public:
@@ -352,6 +407,7 @@ public:
 
         m_is_paused = download.status == WebView::FileDownloader::DownloadStatus::Paused;
         m_pause_button->setText(m_is_paused ? "Resume" : "Pause");
+        Thoth::localize_widget_tree(*m_pause_button);
 
         auto should_show_pause = download.can_resume && WebView::FileDownloader::status_is_active(download.status);
         auto pause_button_is_visible = !m_pause_button->isHidden();
@@ -545,6 +601,7 @@ Tab::Tab(BrowserWindow* window, Optional<WebView::CanonicalTraversable&> travers
     };
 
     m_view = new WebContentView(this, traversable, AK::move(view_initial_state));
+    m_loading_overlay = new TabLoadingOverlay(this);
     m_javascript_dialog = new JavaScriptDialog(m_view);
     m_find_in_page = new FindInPageWidget(this, m_view);
     m_find_in_page->setVisible(false);
@@ -569,7 +626,7 @@ Tab::Tab(BrowserWindow* window, Optional<WebView::CanonicalTraversable&> travers
     m_location_edit = new LocationEdit(this, m_window->is_private());
     m_bookmarks_bar = new BookmarksBar(this);
     m_loading_animation_timer = new QTimer(this);
-    m_loading_animation_timer->setInterval(80);
+    m_loading_animation_timer->setInterval(32);
 
     m_hover_label = new HyperlinkLabel(this);
     m_hover_label->hide();
@@ -580,11 +637,12 @@ Tab::Tab(BrowserWindow* window, Optional<WebView::CanonicalTraversable&> travers
         update_hover_label();
     });
     QObject::connect(m_loading_animation_timer, &QTimer::timeout, this, [this] {
-        m_loading_animation_frame = (m_loading_animation_frame + 1) % 12;
-        update_tab_icon();
+        m_loading_animation_frame = (m_loading_animation_frame + 1) % 36;
+        m_loading_overlay->set_frame(m_loading_animation_frame);
     });
 
     auto* focus_location_editor_action = new QAction("Edit Location", this);
+    focus_location_editor_action->setObjectName("ThothLocationAction");
     focus_location_editor_action->setShortcuts({ QKeySequence("Ctrl+L"), QKeySequence("Alt+D") });
     addAction(focus_location_editor_action);
 
@@ -945,7 +1003,7 @@ Tab::Tab(BrowserWindow* window, Optional<WebView::CanonicalTraversable&> travers
         auto* dialog = new QMessageBox(&view());
         dialog->setAttribute(Qt::WA_DeleteOnClose);
         dialog->setIcon(QMessageBox::Icon::Question);
-        dialog->setWindowTitle("Ladybird");
+        dialog->setWindowTitle("Thoth Browser");
         dialog->setTextFormat(Qt::PlainText);
         dialog->setText(qstring_from_ak_string(question));
         auto* allow_button = dialog->addButton("Allow", QMessageBox::ButtonRole::AcceptRole);
@@ -980,7 +1038,7 @@ Tab::Tab(BrowserWindow* window, Optional<WebView::CanonicalTraversable&> travers
         m_color_picker_dialog = new QColorDialog(QColor(current_color.red(), current_color.green(), current_color.blue()), &view());
 
         auto& dialog = *m_color_picker_dialog;
-        dialog.setWindowTitle("Ladybird");
+        dialog.setWindowTitle("Thoth Browser");
         dialog.setOption(QColorDialog::ShowAlphaChannel, false);
         QObject::connect(&dialog, &QColorDialog::currentColorChanged, this, [this](QColor const& color) {
             view().color_picker_update(Color(color.red(), color.green(), color.blue()), Web::HTML::ColorPickerUpdateState::Update);
@@ -1179,12 +1237,18 @@ Tab::~Tab() = default;
 
 void Tab::focus_location_editor()
 {
+    if (auto* sidebar = m_window->thoth_sidebar()) sidebar->expand();
 #if defined(AK_OS_MACOS)
     make_appkit_window_first_responder(*m_location_edit);
 #endif
     m_location_edit->setFocus();
     m_location_edit->selectAll();
     m_location_edit->show_autocomplete();
+}
+
+void Tab::navigate_from_user_input(QString const& input)
+{
+    m_location_edit->navigate_from_user_input(input);
 }
 
 void Tab::set_window(BrowserWindow& window)
@@ -1221,6 +1285,89 @@ void Tab::set_vertical_tabs_position(WebView::VerticalTabsPosition position)
     m_toolbar->layout()->invalidate();
 }
 
+void Tab::configure_sidebar_toolbar()
+{
+    if (m_thoth_sidebar_toolbar) return;
+    m_thoth_sidebar_toolbar = true;
+    findChild<QAction*>("ThothLocationAction")->setShortcuts({});
+    auto* old_layout = m_toolbar->layout();
+    while (auto* item = old_layout->takeAt(0)) { if (auto* widget = item->widget()) widget->hide(); delete item; }
+    delete old_layout;
+    auto sidebar_font = m_window->thoth_sidebar()->font();
+    m_toolbar_container->setFont(sidebar_font); m_location_edit->setFont(sidebar_font); m_location_edit->set_sidebar_mode();
+    m_toolbar->setFixedHeight(46); m_toolbar->setStyleSheet({}); m_toolbar->setMinimumWidth(0);
+    m_toolbar->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+    m_sidebar_navigation_buttons = new QWidget(this);
+    m_sidebar_navigation_buttons->setProperty(WINDOW_DRAG_REGION_PROPERTY, true);
+    m_sidebar_navigation_buttons->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    m_sidebar_navigation_buttons->setFixedHeight(46);
+    auto* row = new QHBoxLayout(m_sidebar_navigation_buttons);
+    row->setContentsMargins(0, 0, 0, 0);
+    row->setSpacing(4);
+
+    auto* back = create_navigation_history_toolbar_button(*m_sidebar_navigation_buttons, *m_navigate_back_action, view(), -1);
+    back->setObjectName("ThothSidebarGoBack");
+    back->setAccessibleName("Go Back");
+    auto* forward = create_navigation_history_toolbar_button(*m_sidebar_navigation_buttons, *m_navigate_forward_action, view(), 1);
+    forward->setObjectName("ThothSidebarGoForward");
+    forward->setAccessibleName("Go Forward");
+
+    m_sidebar_reload_button = new ToolbarButton(m_sidebar_navigation_buttons);
+    m_sidebar_reload_button->setObjectName("ThothSidebarReload");
+    m_sidebar_reload_button->setAccessibleName("Reload");
+    m_sidebar_reload_button->setToolTip("Reload current page");
+    m_sidebar_reload_button->setIcon(create_chrome_icon(ChromeIcon::Reload, palette()));
+    m_sidebar_reload_button->setIconSize({ 18, 18 });
+    m_sidebar_reload_button->setAutoRaise(true);
+    m_sidebar_reload_button->setFocusPolicy(Qt::NoFocus);
+    m_sidebar_reload_button->setCheckable(false);
+    m_sidebar_reload_button->setProperty("ThothPressOnlyFeedback", true);
+    QObject::connect(m_sidebar_reload_button, &QToolButton::clicked, this, [this] {
+        view().reload();
+    });
+
+    row->addWidget(back);
+    row->addWidget(forward);
+    row->addWidget(m_sidebar_reload_button);
+    row->addStretch();
+    for (auto* button : m_sidebar_navigation_buttons->findChildren<QToolButton*>(QString {},Qt::FindDirectChildrenOnly)) {
+        button->setFixedSize(40, 40);
+        button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+        button->setIconSize({ 18, 18 });
+    }
+    m_sidebar_navigation_buttons->setStyleSheet("QToolButton { min-width: 40px; min-height: 40px; max-width: 40px; max-height: 40px; padding: 0; border: none; border-radius: 10px; } QToolButton::menu-indicator { image: none; } QToolButton#ThothSidebarReload:hover { background: transparent; }");
+#if defined(Q_OS_WIN)
+    // Keep Windows browser chrome in a single full-width top row: navigation
+    // controls on the left, the address field in the middle, and window
+    // controls (including Close) on the right.
+    m_sidebar_navigation_buttons->setFixedHeight(40);
+    auto* toolbar_row = new QHBoxLayout(m_toolbar);
+    toolbar_row->setContentsMargins(TOOLBAR_HORIZONTAL_MARGIN, TOOLBAR_VERTICAL_MARGIN, TOOLBAR_WINDOW_CONTROLS_RIGHT_MARGIN, TOOLBAR_VERTICAL_MARGIN);
+    toolbar_row->setSpacing(8);
+    m_sidebar_navigation_buttons->setParent(m_toolbar);
+    toolbar_row->addWidget(m_sidebar_navigation_buttons, 0, Qt::AlignVCenter);
+    m_location_edit->setParent(m_toolbar);
+    m_location_edit->setMinimumWidth(0);
+    toolbar_row->addWidget(m_location_edit, 1);
+    toolbar_row->addWidget(m_toolbar_window_controls, 0, Qt::AlignVCenter);
+    m_toolbar_window_controls_separator->hide();
+#else
+    auto* column = new QVBoxLayout(m_toolbar);
+    column->setContentsMargins(0, 0, 0, 0);
+    column->setSpacing(0);
+    m_location_edit->setParent(m_toolbar);
+    m_location_edit->setMinimumWidth(0);
+    column->addWidget(m_location_edit);
+#endif
+    m_location_edit->show();
+    // Full browser commands remain in the native menu and the sidebar's Browser submenu.
+    auto* hidden_controls = new QWidget(this); hidden_controls->hide();
+    m_downloads_button->setParent(hidden_controls); m_hamburger_button->setParent(hidden_controls);
+    m_bookmarks_bar->setParent(hidden_controls);
+    m_toolbar_container->setSizePolicy(QSizePolicy::Ignored,QSizePolicy::Fixed);
+    update_chrome_style();
+}
+
 void Tab::set_toolbar_container_in_tab_layout(bool in_tab_layout)
 {
     auto* tab_layout = static_cast<QBoxLayout*>(layout());
@@ -1246,7 +1393,7 @@ void Tab::set_toolbar_window_controls_visible(bool visible)
     auto const has_native_window_controls = use_native_macos_window_controls() && visible;
     auto const has_custom_window_controls = !use_native_macos_window_controls() && visible;
 
-    m_toolbar_window_controls_separator->setVisible(has_custom_window_controls);
+    m_toolbar_window_controls_separator->setVisible(has_custom_window_controls && !m_thoth_sidebar_toolbar);
     m_toolbar_window_controls->setVisible(has_native_window_controls || has_custom_window_controls);
     m_toolbar->layout()->setContentsMargins(TOOLBAR_HORIZONTAL_MARGIN, TOOLBAR_VERTICAL_MARGIN, has_custom_window_controls ? TOOLBAR_WINDOW_CONTROLS_RIGHT_MARGIN : TOOLBAR_HORIZONTAL_MARGIN, TOOLBAR_VERTICAL_MARGIN);
     m_toolbar->layout()->invalidate();
@@ -1261,6 +1408,7 @@ void Tab::update_window_control_icons()
     m_minimize_window_button->setIcon(create_chrome_icon(ChromeIcon::WindowMinimize, palette()));
     m_maximize_window_button->setIcon(create_chrome_icon(is_maximized ? ChromeIcon::WindowRestore : ChromeIcon::WindowMaximize, palette()));
     m_maximize_window_button->setToolTip(is_maximized ? "Restore" : "Maximize");
+    Thoth::localize_widget_tree(*m_maximize_window_button);
     m_close_window_button->setIcon(create_chrome_icon(ChromeIcon::WindowClose, palette()));
 }
 
@@ -1309,8 +1457,6 @@ void Tab::location_edit_return_pressed(String input, Optional<URL::URL> fallback
 
 QIcon Tab::tab_icon() const
 {
-    if (m_is_loading)
-        return loading_spinner_icon(palette(), m_loading_animation_frame);
     return m_favicon;
 }
 
@@ -1365,6 +1511,8 @@ void Tab::set_loading(bool is_loading)
     else
         m_loading_animation_timer->stop();
 
+    m_loading_overlay->setVisible(m_is_loading);
+    m_loading_overlay->raise();
     update_tab_icon();
 }
 
@@ -1407,6 +1555,13 @@ void Tab::set_screen_wake_lock_state(Web::ScreenWakeLockState wake_lock_state)
 void Tab::resizeEvent(QResizeEvent* event)
 {
     QWidget::resizeEvent(event);
+    if (m_view) {
+        // Keep the native page surface flush with the browser content. A
+        // QWidget mask can leave a stale strip when the sidebar changes width.
+        m_view->clearMask();
+        m_loading_overlay->setGeometry(m_view->geometry());
+        m_loading_overlay->raise();
+    }
     if (m_hover_label->isVisible())
         update_hover_label();
 }
@@ -1457,7 +1612,10 @@ void Tab::update_chrome_style()
     if (m_is_updating_chrome_style)
         return;
     m_is_updating_chrome_style = true;
-    m_toolbar_container->setStyleSheet(ChromeStyle::toolbar_container_style_sheet(palette()));
+    auto toolbar_style = ChromeStyle::toolbar_container_style_sheet(palette());
+    if (m_thoth_sidebar_toolbar)
+        toolbar_style += "QWidget#LadybirdToolbarContainer, QWidget#LadybirdNavigationToolbar { background: transparent; border: none; } QWidget#LadybirdNavigationToolbar QToolButton { min-width: 26px; min-height: 26px; max-width: 28px; max-height: 28px; border-radius: 7px; } QWidget#LadybirdNavigationToolbar QToolButton::menu-indicator { image: none; width: 0px; height: 0px; }";
+    m_toolbar_container->setStyleSheet(toolbar_style);
     auto hover_surface = ChromeStyle::style_sheet_color(ChromeStyle::chrome_surface(palette()));
     auto hover_border = ChromeStyle::style_sheet_color(ChromeStyle::chrome_border(palette()));
     auto hover_text = ChromeStyle::style_sheet_color(ChromeStyle::chrome_text(palette()));
@@ -1480,6 +1638,8 @@ void Tab::recreate_toolbar_icons()
     m_navigate_back_action->setIcon(create_chrome_icon(ChromeIcon::Back, palette()));
     m_navigate_forward_action->setIcon(create_chrome_icon(ChromeIcon::Forward, palette()));
     m_reload_action->setIcon(create_chrome_icon(ChromeIcon::Reload, palette()));
+    if (m_sidebar_reload_button)
+        m_sidebar_reload_button->setIcon(m_reload_action->icon());
     m_downloads_button_icon = {};
     update_downloads_button();
     m_hamburger_button->setIcon(create_chrome_icon(ChromeIcon::Menu, palette()));
@@ -1489,6 +1649,12 @@ void Tab::recreate_toolbar_icons()
         auto icon = view().toggle_bookmark_action().engaged() ? ChromeIcon::StarFilled : ChromeIcon::Star;
         action->setIcon(create_chrome_icon(icon, palette()));
     }
+}
+
+void Tab::refresh_chrome_appearance()
+{
+    recreate_toolbar_icons();
+    update_chrome_style();
 }
 
 void Tab::update_downloads_button()
@@ -1681,6 +1847,7 @@ void Tab::show_content_blocking_popover()
 
 void Tab::update_vertical_tabs_toolbar_button_placement()
 {
+    if (m_thoth_sidebar_toolbar) return;
     auto show_left_button = m_vertical_tabs_enabled && m_vertical_tabs_position == WebView::VerticalTabsPosition::Left;
     auto show_right_button = m_vertical_tabs_enabled && m_vertical_tabs_position == WebView::VerticalTabsPosition::Right;
 

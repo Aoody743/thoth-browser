@@ -20,6 +20,7 @@
 #include <UI/Qt/ProcessManagerWindow.h>
 #include <UI/Qt/Settings.h>
 #include <UI/Qt/StringUtils.h>
+#include <UI/Qt/Thoth/Localization.h>
 #include <UI/Qt/WebContentView.h>
 
 #if defined(AK_OS_MACOS)
@@ -304,8 +305,8 @@ public:
         m_close_current_tab_action = make_action("&Close Current Tab");
         m_close_current_tab_action->setShortcuts(QKeySequence::keyBindings(QKeySequence::StandardKey::Close));
         QObject::connect(m_close_current_tab_action, &QAction::triggered, this, []() {
-            if (auto* tab = Application::the().active_tab())
-                tab->request_close();
+            if (auto* window = Application::the().active_window_if_any())
+                window->request_to_close_current_tab();
         });
 
         m_open_next_tab_action = make_action("Open &Next Tab");
@@ -407,9 +408,11 @@ public:
             return;
 
         m_reopen_recently_closed_tab_action->setText("&Reopen Recently Closed Tab");
+        Thoth::localize_action(*m_reopen_recently_closed_tab_action);
         auto* active_window = Application::the().active_window_if_any();
         auto& session = active_window ? active_window->session() : WebView::Application::default_session();
-        m_reopen_recently_closed_tab_action->setEnabled(session.session_store->has_closed_units());
+        auto* window = Application::the().active_window_if_any();
+        m_reopen_recently_closed_tab_action->setEnabled(window && window->thoth_sidebar() ? window->thoth_sidebar()->can_reopen() : session.session_store->has_closed_units());
     }
 
     void rebuild_bookmarks_menu()
@@ -558,8 +561,10 @@ Core::EventLoop& Application::create_platform_event_loop()
         qputenv("NO_AT_BRIDGE", "1");
 #endif
         m_application = make<LadybirdQApplication>(arguments());
+        QCoreApplication::setApplicationName("Thoth Browser");
+        QCoreApplication::setApplicationVersion("alpha2.0");
 #if defined(AK_OS_LINUX)
-        QGuiApplication::setDesktopFileName(QStringLiteral("org.ladybird.Ladybird"));
+        QGuiApplication::setDesktopFileName(QStringLiteral("thoth.aoody"));
 #endif
 #if !defined(Q_OS_MACOS) && !defined(Q_OS_WIN)
         install_orca_scripts();
@@ -699,7 +704,7 @@ void Application::open_new_tab()
         return;
     }
 
-    auto& tab = m_active_window->new_tab_from_url(WebView::Application::settings().new_tab_page_url(), Web::HTML::ActivateTab::Yes, BrowserWindow::TabLocation::end());
+    auto& tab = m_active_window->new_tab_from_url(URL::about_blank(), Web::HTML::ActivateTab::Yes, BrowserWindow::TabLocation::end());
     tab.set_url_is_hidden(true);
     tab.focus_location_editor();
 }
@@ -736,6 +741,11 @@ void Application::focus_location_editor()
 
 void Application::reopen_recently_closed_tab()
 {
+    if (m_active_window && m_active_window->thoth_sidebar()) {
+        m_active_window->thoth_sidebar()->reopen();
+        update_reopen_recently_closed_actions();
+        return;
+    }
     auto is_private = m_active_window ? m_active_window->is_private() : WebView::IsPrivate::No;
     auto& session = m_active_window ? m_active_window->session() : WebView::Application::default_session();
     auto closed_unit = session.session_store->take_most_recently_closed();
@@ -821,8 +831,11 @@ void Application::open_file()
 
 void Application::quit()
 {
-    if (!confirm_stop_active_downloads(active_window_if_any()))
+    Thoth::Sidebar::application_quitting(true);
+    if (!confirm_stop_active_downloads(active_window_if_any())) {
+        Thoth::Sidebar::application_quitting(false);
         return;
+    }
 
     WebView::Application::default_session().session_store->application_quitting();
 
@@ -831,6 +844,7 @@ void Application::quit()
     for (auto* widget : QApplication::topLevelWidgets()) {
         if (as_if<BrowserWindow>(widget) && widget->isVisible()) {
             WebView::Application::default_session().session_store->application_quit_aborted();
+            Thoth::Sidebar::application_quitting(false);
             return;
         }
     }
@@ -844,7 +858,7 @@ bool Application::confirm_stop_active_downloads(QWidget* parent)
 
     if (downloader.has_unresumable_downloads()) {
         QMessageBox dialog(parent ? parent : active_window_if_any());
-        dialog.setWindowTitle("Ladybird");
+        dialog.setWindowTitle("Thoth Browser");
         dialog.setIcon(QMessageBox::Warning);
         dialog.setText("Downloads are still in progress.");
         dialog.setInformativeText("Quitting will cancel downloads that cannot be resumed.");
@@ -981,7 +995,7 @@ void Application::display_download_confirmation_dialog(StringView download_name,
     auto message = MUST(String::formatted("{} saved to: {}", download_name, path));
 
     QMessageBox dialog(active_tab());
-    dialog.setWindowTitle("Ladybird");
+    dialog.setWindowTitle("Thoth Browser");
     dialog.setIcon(QMessageBox::Information);
     dialog.setText(qstring_from_ak_string(message));
     dialog.addButton(QMessageBox::Ok);
@@ -1000,7 +1014,7 @@ void Application::display_error_dialog(StringView error_message) const
         return;
     }
 
-    QMessageBox::warning(active_tab(), "Ladybird", qstring_from_ak_string(error_message));
+    QMessageBox::warning(active_tab(), "Thoth Browser", qstring_from_ak_string(error_message));
 }
 
 void Application::open_download(WebView::FileDownloader::Download const& download) const
@@ -1403,6 +1417,8 @@ QMenuBar* Application::create_application_menu_bar(ForBrowserWindow for_browser_
         menu_bar->addMenu(debug_menu());
     }
     menu_bar->addMenu(help_menu());
+
+    Thoth::localize_widget_tree(*menu_bar);
 
     return menu_bar;
 }

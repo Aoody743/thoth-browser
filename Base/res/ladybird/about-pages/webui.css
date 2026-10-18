@@ -1,8 +1,9 @@
 @media (prefers-color-scheme: light) {
     :root {
+        --page-background-color: #f7f7f9;
         --border-color: #dcdde1;
         --input-background-color: white;
-        --card-background-color: #f5f5f5;
+        --card-background-color: #ffffff;
         --card-header-background-color: #f0f2f5;
         --icon-background-color: #dfe8f5;
         --icon-color: #37597d;
@@ -13,14 +14,16 @@
         --menu-shadow-color: rgba(0, 0, 0, 0.12);
         --secondary-text-color: #65707d;
         --separator-color: #e3e6eb;
+        --page-shadow: 0 8px 24px rgba(38, 42, 54, 0.05);
     }
 }
 
 @media (prefers-color-scheme: dark) {
     :root {
+        --page-background-color: #17171a;
         --border-color: #3d3d3d;
         --input-background-color: #1e1e1e;
-        --card-background-color: #242424;
+        --card-background-color: #242428;
         --card-header-background-color: #252525;
         --icon-background-color: #243748;
         --icon-color: #9bc3ef;
@@ -31,12 +34,14 @@
         --menu-shadow-color: rgba(0, 0, 0, 0.4);
         --secondary-text-color: #a5b0bc;
         --separator-color: #323841;
+        --page-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
     }
 }
 
 :root {
     --accent: var(--violet-100);
-    --card-radius: 12px;
+    --card-radius: 14px;
+    color-scheme: light dark;
 }
 
 * {
@@ -44,27 +49,40 @@
 }
 
 body {
-    max-width: 800px;
-
+    max-width: 1080px;
+    min-height: 100vh;
     margin: 0 auto;
-    padding: 20px;
+    padding: 28px 32px 64px;
+    background: var(--page-background-color);
+    color: var(--text-color);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
 }
 
 header {
     display: flex;
     align-items: center;
-
-    margin-bottom: 30px;
+    gap: 14px;
+    padding: 10px 0 22px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border-color);
 }
 
 header h1 {
-    font-size: 20px;
+    margin: 0;
+    font-size: 24px;
+    font-weight: 650;
+    letter-spacing: -0.02em;
 }
 
 header img {
+    box-sizing: border-box;
+    width: 48px;
     height: 48px;
-    margin-right: 10px;
-    float: left;
+    padding: 0;
+    margin: 0;
+    object-fit: contain;
 }
 
 .card-title {
@@ -79,10 +97,10 @@ header img {
 
 .card {
     background-color: var(--card-background-color);
-
     border: 1px solid var(--border-color);
     border-radius: var(--card-radius);
-    margin-bottom: 20px;
+    margin-bottom: 16px;
+    box-shadow: var(--page-shadow);
 }
 
 .card-body {
@@ -102,6 +120,31 @@ header img {
 .description {
     margin-top: 4px;
     color: var(--secondary-text-color);
+}
+
+a {
+    color: var(--accent);
+}
+
+button,
+input,
+select,
+textarea {
+    font: inherit;
+}
+
+input[type="text"],
+input[type="url"],
+input[type="search"],
+select,
+textarea {
+    min-height: 38px;
+    border-radius: 9px;
+    padding: 8px 11px;
+}
+
+button {
+    border-radius: 9px;
 }
 
 .description:empty {

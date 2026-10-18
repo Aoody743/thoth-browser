@@ -67,6 +67,32 @@ TEST_CASE(profile_names)
     EXPECT(!WebView::Profile::is_valid_name("has/slash"sv));
 }
 
+TEST_CASE(appearance_values_are_validated)
+{
+    auto parsed = WebView::Settings::parse_appearance(MUST(JsonValue::from_string(R"({
+        "showMenuBar": true,
+        "showBookmarksBar": false,
+        "browserUiFont": "unknown-font",
+        "browserColorPalette": "unknown-palette",
+        "browserIconWeight": "unknown-weight"
+    })"_string)));
+
+    EXPECT(parsed.show_menu_bar);
+    EXPECT(!parsed.show_bookmarks_bar);
+    EXPECT_EQ(parsed.browser_ui_font, "system"sv);
+    EXPECT_EQ(parsed.browser_color_palette, "lavender"sv);
+    EXPECT_EQ(parsed.browser_icon_weight, "balanced"sv);
+
+    parsed = WebView::Settings::parse_appearance(MUST(JsonValue::from_string(R"({
+        "browserUiFont": "fraunces",
+        "browserColorPalette": "terracotta",
+        "browserIconWeight": "fine"
+    })"_string)));
+    EXPECT_EQ(parsed.browser_ui_font, "fraunces"sv);
+    EXPECT_EQ(parsed.browser_color_palette, "terracotta"sv);
+    EXPECT_EQ(parsed.browser_icon_weight, "fine"sv);
+}
+
 TEST_CASE(routing_identity)
 {
     EXPECT_EQ(WebView::Profile::routing_identifier("/profiles/default"sv), WebView::Profile::routing_identifier("/profiles/default"sv));
@@ -81,17 +107,17 @@ TEST_CASE(named_and_default_layouts)
 
     auto named = MUST(WebView::Profile::create({ .name = "work" }, profile_roots));
     EXPECT_EQ(named.identifier(), "work"sv);
-    EXPECT_EQ(named.paths().config, LexicalPath::join(profile_roots.config, "Ladybird/Profiles/work"sv).string());
-    EXPECT_EQ(named.paths().data, LexicalPath::join(profile_roots.data, "Ladybird/Profiles/work"sv).string());
-    EXPECT_EQ(named.paths().cache, LexicalPath::join(profile_roots.cache, "Ladybird/Profiles/work"sv).string());
-    EXPECT_EQ(named.paths().runtime, LexicalPath::join(profile_roots.runtime, "Ladybird/Profiles/work"sv).string());
+    EXPECT_EQ(named.paths().config, LexicalPath::join(profile_roots.config, "Thoth Browser/Profiles/work"sv).string());
+    EXPECT_EQ(named.paths().data, LexicalPath::join(profile_roots.data, "Thoth Browser/Profiles/work"sv).string());
+    EXPECT_EQ(named.paths().cache, LexicalPath::join(profile_roots.cache, "Thoth Browser/Profiles/work"sv).string());
+    EXPECT_EQ(named.paths().runtime, LexicalPath::join(profile_roots.runtime, "Thoth Browser/Profiles/work"sv).string());
 
     auto default_profile = MUST(WebView::Profile::create({}, profile_roots));
     EXPECT_EQ(default_profile.identifier(), "default"sv);
-    EXPECT_EQ(default_profile.paths().config, LexicalPath::join(profile_roots.config, "Ladybird/Profiles/default"sv).string());
-    EXPECT_EQ(default_profile.paths().data, LexicalPath::join(profile_roots.data, "Ladybird/Profiles/default"sv).string());
-    EXPECT_EQ(default_profile.paths().cache, LexicalPath::join(profile_roots.cache, "Ladybird/Profiles/default"sv).string());
-    EXPECT_EQ(default_profile.paths().runtime, LexicalPath::join(profile_roots.runtime, "Ladybird/Profiles/default"sv).string());
+    EXPECT_EQ(default_profile.paths().config, LexicalPath::join(profile_roots.config, "Thoth Browser/Profiles/default"sv).string());
+    EXPECT_EQ(default_profile.paths().data, LexicalPath::join(profile_roots.data, "Thoth Browser/Profiles/default"sv).string());
+    EXPECT_EQ(default_profile.paths().cache, LexicalPath::join(profile_roots.cache, "Thoth Browser/Profiles/default"sv).string());
+    EXPECT_EQ(default_profile.paths().runtime, LexicalPath::join(profile_roots.runtime, "Thoth Browser/Profiles/default"sv).string());
 
     auto explicit_default_profile = MUST(WebView::Profile::create({ .name = "default" }, profile_roots));
     EXPECT_EQ(explicit_default_profile.paths().identity, default_profile.paths().identity);
@@ -118,9 +144,9 @@ TEST_CASE(legacy_layout)
     auto profile_roots = roots();
     auto profile = MUST(WebView::Profile::create_legacy(profile_roots));
     EXPECT_EQ(profile.identifier(), "legacy"sv);
-    EXPECT_EQ(profile.paths().config, LexicalPath::join(profile_roots.config, "Ladybird"sv).string());
-    EXPECT_EQ(profile.paths().data, LexicalPath::join(profile_roots.data, "Ladybird"sv).string());
-    EXPECT_EQ(profile.paths().cache, LexicalPath::join(profile_roots.cache, "Ladybird"sv).string());
+    EXPECT_EQ(profile.paths().config, LexicalPath::join(profile_roots.config, "Thoth Browser"sv).string());
+    EXPECT_EQ(profile.paths().data, LexicalPath::join(profile_roots.data, "Thoth Browser"sv).string());
+    EXPECT_EQ(profile.paths().cache, LexicalPath::join(profile_roots.cache, "Thoth Browser"sv).string());
     EXPECT_EQ(profile.paths().runtime, profile_roots.runtime);
     remove_test_root();
 }

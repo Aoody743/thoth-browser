@@ -336,7 +336,7 @@ ErrorOr<void> Application::initialize(Main::Arguments const& arguments)
     bool file_scheme_urls_have_tuple_origins = false;
 
     Core::ArgsParser args_parser;
-    args_parser.set_general_help("The Ladybird web browser :^)");
+    args_parser.set_general_help("Thoth Browser alpha2.0 — based on Ladybird");
     args_parser.add_positional_argument(raw_urls, "URLs to open", "url", Core::ArgsParser::Required::No);
 
     args_parser.add_option(Core::ArgsParser::Option {
@@ -2455,7 +2455,7 @@ void Application::initialize_actions()
             view->select_all();
     });
 
-    m_open_about_page_action = Action::create("About Ladybird"sv, ActionID::OpenAboutPage, [this]() {
+    m_open_about_page_action = Action::create("About Thoth Browser"sv, ActionID::OpenAboutPage, [this]() {
         open_url_in_new_tab(URL::about_version(), Web::HTML::ActivateTab::Yes);
     });
     m_open_downloads_page_action = Action::create("Downloads"sv, ActionID::ViewDownloads, [this]() {

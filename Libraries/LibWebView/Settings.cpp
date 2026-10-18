@@ -29,10 +29,35 @@ static constexpr auto NEW_TAB_PAGE_URL_KEY = "newTabPageURL"sv;
 
 static constexpr auto LANGUAGES_KEY = "languages"sv;
 static auto DEFAULT_LANGUAGE = "en"_string;
+static constexpr auto INTERFACE_LANGUAGE_KEY = "interfaceLanguage"sv;
 
 static constexpr auto APPEARANCE_KEY = "appearance"sv;
 static constexpr auto SHOW_MENU_BAR_KEY = "showMenuBar"sv;
 static constexpr auto SHOW_BOOKMARKS_BAR_KEY = "showBookmarksBar"sv;
+static constexpr auto COLOR_SCHEME_KEY = "colorScheme"sv;
+static constexpr auto BROWSER_UI_FONT_KEY = "browserUiFont"sv;
+static constexpr auto BROWSER_COLOR_PALETTE_KEY = "browserColorPalette"sv;
+static constexpr auto BROWSER_ICON_WEIGHT_KEY = "browserIconWeight"sv;
+
+static bool is_supported_browser_ui_font(StringView value)
+{
+    return value.is_one_of("system"sv, "bricolage"sv, "space-grotesk"sv, "fraunces"sv);
+}
+
+static bool is_supported_browser_color_palette(StringView value)
+{
+    return value.is_one_of("lavender"sv, "ocean"sv, "sage"sv, "rose"sv, "sand"sv, "graphite"sv, "plum"sv, "terracotta"sv);
+}
+
+static bool is_supported_browser_icon_weight(StringView value)
+{
+    return value.is_one_of("fine"sv, "balanced"sv, "expressive"sv);
+}
+
+static bool is_supported_color_scheme(StringView value)
+{
+    return value.is_one_of("system"sv, "light"sv, "dark"sv);
+}
 
 static constexpr auto CONTENT_SETTINGS_KEY = "content"sv;
 static constexpr auto DEFAULT_ZOOM_LEVEL_FACTOR_KEY = "defaultZoomLevelFactor"sv;
@@ -255,12 +280,19 @@ Settings Settings::create(ByteString settings_path)
     settings.m_first_run_complete = settings_json.value().get_bool(FIRST_RUN_COMPLETE_KEY).value_or(false);
 
     if (auto new_tab_page_url = settings_json.value().get_string(NEW_TAB_PAGE_URL_KEY); new_tab_page_url.has_value()) {
-        if (auto parsed_new_tab_page_url = URL::Parser::basic_parse(*new_tab_page_url); parsed_new_tab_page_url.has_value())
-            settings.m_new_tab_page_url = parsed_new_tab_page_url.release_value();
+        // The old built-in placeholder is no longer the browser default.
+        // Treat it as unset so existing profiles use the new start page.
+        if (*new_tab_page_url != "about:newtab"sv) {
+            if (auto parsed_new_tab_page_url = URL::Parser::basic_parse(*new_tab_page_url); parsed_new_tab_page_url.has_value())
+                settings.m_new_tab_page_url = parsed_new_tab_page_url.release_value();
+        }
     }
 
     if (auto languages = settings_json.value().get(LANGUAGES_KEY); languages.has_value())
         settings.m_languages = parse_json_languages(*languages);
+
+    if (auto interface_language = settings_json.value().get_string(INTERFACE_LANGUAGE_KEY); interface_language.has_value() && interface_language->is_one_of("en"sv, "zh-CN"sv))
+        settings.m_interface_language = ByteString(*interface_language);
 
     if (auto appearance = settings_json.value().get(APPEARANCE_KEY); appearance.has_value())
         settings.m_appearance = parse_appearance(*appearance);
@@ -416,7 +448,7 @@ Settings Settings::create(ByteString settings_path)
 
 Settings::Settings(ByteString settings_path)
     : m_settings_path(move(settings_path))
-    , m_new_tab_page_url(URL::about_newtab())
+    , m_new_tab_page_url(URL::Parser::basic_parse("https://limestart.cn"sv).release_value())
     , m_languages({ DEFAULT_LANGUAGE })
 {
     for (auto const& variable : config_variable_definitions()) {
@@ -471,10 +503,15 @@ JsonValue Settings::serialize_json() const
     for (auto const& language : m_languages)
         languages.must_append(language);
     settings.set(LANGUAGES_KEY, move(languages));
+    settings.set(INTERFACE_LANGUAGE_KEY, m_interface_language.view());
 
     JsonObject appearance;
     appearance.set(SHOW_MENU_BAR_KEY, m_appearance.show_menu_bar);
     appearance.set(SHOW_BOOKMARKS_BAR_KEY, m_appearance.show_bookmarks_bar);
+    appearance.set(COLOR_SCHEME_KEY, m_appearance.color_scheme.view());
+    appearance.set(BROWSER_UI_FONT_KEY, m_appearance.browser_ui_font.view());
+    appearance.set(BROWSER_COLOR_PALETTE_KEY, m_appearance.browser_color_palette.view());
+    appearance.set(BROWSER_ICON_WEIGHT_KEY, m_appearance.browser_icon_weight.view());
     settings.set(APPEARANCE_KEY, move(appearance));
 
     JsonObject zoom_per_host;
@@ -694,6 +731,18 @@ void Settings::set_languages(Vector<String> languages)
         observer.languages_changed();
 }
 
+void Settings::set_interface_language(StringView language)
+{
+    if (!language.is_one_of("en"sv, "zh-CN"sv) || language == m_interface_language)
+        return;
+
+    m_interface_language = ByteString(language);
+    persist_settings();
+
+    for (auto& observer : m_observers)
+        observer.interface_language_changed();
+}
+
 Appearance Settings::parse_appearance(JsonValue const& settings)
 {
     if (!settings.is_object())
@@ -705,6 +754,14 @@ Appearance Settings::parse_appearance(JsonValue const& settings)
         appearance.show_menu_bar = *show_menu_bar;
     if (auto show_bookmarks_bar = settings.as_object().get_bool(SHOW_BOOKMARKS_BAR_KEY); show_bookmarks_bar.has_value())
         appearance.show_bookmarks_bar = *show_bookmarks_bar;
+    if (auto color_scheme = settings.as_object().get_string(COLOR_SCHEME_KEY); color_scheme.has_value() && is_supported_color_scheme(*color_scheme))
+        appearance.color_scheme = ByteString(*color_scheme);
+    if (auto browser_ui_font = settings.as_object().get_string(BROWSER_UI_FONT_KEY); browser_ui_font.has_value() && is_supported_browser_ui_font(*browser_ui_font))
+        appearance.browser_ui_font = ByteString(*browser_ui_font);
+    if (auto browser_color_palette = settings.as_object().get_string(BROWSER_COLOR_PALETTE_KEY); browser_color_palette.has_value() && is_supported_browser_color_palette(*browser_color_palette))
+        appearance.browser_color_palette = ByteString(*browser_color_palette);
+    if (auto browser_icon_weight = settings.as_object().get_string(BROWSER_ICON_WEIGHT_KEY); browser_icon_weight.has_value() && is_supported_browser_icon_weight(*browser_icon_weight))
+        appearance.browser_icon_weight = ByteString(*browser_icon_weight);
 
     return appearance;
 }

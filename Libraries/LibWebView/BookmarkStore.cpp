@@ -152,8 +152,18 @@ static Vector<BookmarkItem> create_default_bookmarks()
             .date_added = now,
             .last_modified = now,
             .data = BookmarkItem::Bookmark {
+                .url = URL::Parser::basic_parse("https://github.com/Aoody743/thoth-browser"sv).release_value(),
+                .title = "Thoth Browser"_string,
+                .favicon_hash = {},
+            },
+        },
+        {
+            .id = generate_random_uuid(),
+            .date_added = now,
+            .last_modified = now,
+            .data = BookmarkItem::Bookmark {
                 .url = URL::Parser::basic_parse("https://ladybird.org/"sv).release_value(),
-                .title = "Ladybird"_string,
+                .title = "Ladybird Engine"_string,
                 .favicon_hash = {},
             },
         },
@@ -162,18 +172,8 @@ static Vector<BookmarkItem> create_default_bookmarks()
             .date_added = now,
             .last_modified = now,
             .data = BookmarkItem::Bookmark {
-                .url = URL::Parser::basic_parse("https://github.com/LadybirdBrowser/ladybird"sv).release_value(),
-                .title = "Ladybird GitHub"_string,
-                .favicon_hash = {},
-            },
-        },
-        {
-            .id = generate_random_uuid(),
-            .date_added = now,
-            .last_modified = now,
-            .data = BookmarkItem::Bookmark {
-                .url = URL::Parser::basic_parse("https://discord.com/invite/nvfjVJ4Svh"sv).release_value(),
-                .title = "Ladybird Discord"_string,
+                .url = URL::Parser::basic_parse("https://github.com/Aoody743/thoth-browser/issues"sv).release_value(),
+                .title = "Thoth Issues"_string,
                 .favicon_hash = {},
             },
         },

@@ -18,7 +18,7 @@ import urllib.request
 
 from pathlib import Path
 
-DEFAULT_WEBDRIVER = "Build/release/bin/Ladybird.app/Contents/MacOS/WebDriver"
+DEFAULT_WEBDRIVER = "Build/release/bin/Thoth Browser.app/Contents/MacOS/WebDriver"
 DEFAULT_URL = "http://localhost:8000/resources/style-bench.html"
 STYLE_BENCH_FLUSHES_PER_ITERATION = 26
 

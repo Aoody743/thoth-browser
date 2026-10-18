@@ -652,9 +652,8 @@ QToolButton#LadybirdLocationIcon[notSecure="true"] {{
     color: {9};
     background: {10};
     border: 1px solid {13};
-    border-radius: 10px;
-    padding: 0 7px;
-    font-weight: 500;
+    border-radius: 8px;
+    padding: 0;
 }}
 
 QToolButton#LadybirdLocationIcon[notSecure="true"]:hover {{
@@ -1271,7 +1270,8 @@ QToolButton#LadybirdCloseWindowButton[pressedOutside="true"] {{
 QString autocomplete_popup_style_sheet(QPalette const& palette)
 {
     auto surface = style_sheet_color(chrome_surface(palette));
-    auto border = style_sheet_color(chrome_border(palette));
+    auto accent = chrome_accent(palette);
+    auto border = style_sheet_color(mix(chrome_border(palette), accent, is_dark(palette) ? 0.28 : 0.20));
     auto text = style_sheet_color(chrome_text(palette));
 
     return qformatted(R"(
@@ -1279,7 +1279,7 @@ QFrame#LadybirdAutocompletePopup {{
     color: {2};
     background: {0};
     border: 1px solid {1};
-    border-radius: 0 0 10px 10px;
+    border-radius: 12px;
 }}
 
 QListView#LadybirdAutocompleteList {{
@@ -1287,6 +1287,7 @@ QListView#LadybirdAutocompleteList {{
     background: transparent;
     border: 0;
     outline: 0;
+    padding: 2px 0;
 }}
 )",
         surface, border, text);
@@ -1505,7 +1506,7 @@ void paint_circular_control_frame(QPainter& painter, QAbstractButton const& butt
         return;
 
     auto pressed = button.isDown() || button.isChecked();
-    auto hovered = button.underMouse();
+    auto hovered = button.underMouse() && !button.property("ThothPressOnlyFeedback").toBool();
     if (!hovered && !pressed && frame_style == CircularControlFrameStyle::InteractionOnly)
         return;
 
@@ -1522,8 +1523,10 @@ void paint_circular_control_frame(QPainter& painter, QAbstractButton const& butt
         border = chrome_control_border(palette);
     }
     if (pressed) {
-        background = chrome_control_surface_pressed(palette);
-        border = chrome_control_border(palette);
+        auto dark = is_dark(palette);
+        auto accent = chrome_accent(palette);
+        background = mix(chrome_control_surface_pressed(palette), accent, dark ? 0.34 : 0.26);
+        border = mix(chrome_control_border(palette), accent, dark ? 0.72 : 0.60);
     }
 
     paint_circular_control_frame(painter, button.rect(), button.devicePixelRatioF(), background, border);

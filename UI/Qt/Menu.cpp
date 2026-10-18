@@ -12,6 +12,7 @@
 #include <UI/Qt/Menu.h>
 #include <UI/Qt/StringUtils.h>
 #include <UI/Qt/Tab.h>
+#include <UI/Qt/Thoth/Localization.h>
 #include <UI/Qt/WebContentView.h>
 
 #include <QAction>
@@ -34,14 +35,18 @@ public:
 
     virtual void on_text_changed(WebView::Action& action) override
     {
-        if (m_action)
+        if (m_action) {
             m_action->setText(qstring_from_ak_string(action.text()));
+            Thoth::localize_action(*m_action);
+        }
     }
 
     virtual void on_tooltip_changed(WebView::Action& action) override
     {
-        if (m_action)
+        if (m_action) {
             m_action->setToolTip(qstring_from_ak_string(action.tooltip()));
+            Thoth::localize_action(*m_action);
+        }
     }
 
     virtual void on_enabled_state_changed(WebView::Action& action) override
@@ -361,6 +366,7 @@ QMenu* create_application_menu(QWidget& parent, WebView::Menu& menu, IncludeActi
 {
     auto* application_menu = new QMenu(qstring_from_ak_string(menu.title()), &parent);
     add_items_to_menu(*application_menu, parent, menu, include_action_shortcut);
+    Thoth::localize_menu(*application_menu);
     return application_menu;
 }
 
@@ -368,6 +374,7 @@ void repopulate_application_menu(QMenu& menu, QWidget& parent, WebView::Menu& so
 {
     menu.clear();
     add_items_to_menu(menu, parent, source, include_action_shortcut);
+    Thoth::localize_menu(menu);
 }
 
 static void insert_dynamic_history_action(QMenu& menu, QAction* before, QAction& action)
@@ -447,6 +454,8 @@ void update_history_menu(QMenu& menu, WebContentView* view)
 #if defined(AK_OS_MACOS)
     enable_menu_icons(menu);
 #endif
+
+    Thoth::localize_menu(menu);
 }
 
 QMenu* create_context_menu(QWidget& parent, WebContentView& view, WebView::Menu& menu)

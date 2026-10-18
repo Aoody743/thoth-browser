@@ -39,6 +39,7 @@ class QMessageBox;
 namespace Ladybird {
 
 class BrowserWindow;
+class TabLoadingOverlay;
 enum class ChromeIcon;
 class DownloadsPopover;
 class ContentBlockingButton;
@@ -105,6 +106,7 @@ public:
 
     QToolButton* hamburger_button() const { return m_hamburger_button; }
     QWidget* toolbar_container() const { return m_toolbar_container; }
+    QWidget* sidebar_navigation_buttons() const { return m_sidebar_navigation_buttons; }
 
     void set_vertical_tabs_enabled(bool);
     void set_vertical_tabs_position(WebView::VerticalTabsPosition);
@@ -113,6 +115,8 @@ public:
     void set_toolbar_window_controls_visible(bool);
     void update_window_control_icons();
     void update_hover_label();
+    void refresh_chrome_appearance();
+    void navigate_from_user_input(QString const&);
 
     void set_tab_to_activate_on_close(Tab& tab) { m_tab_to_activate_on_close = &tab; }
 
@@ -121,6 +125,7 @@ public:
 
 public slots:
     void focus_location_editor();
+    void configure_sidebar_toolbar();
 
 signals:
     void title_changed(int id, QString const&);
@@ -159,6 +164,8 @@ private:
     virtual void download_updated(WebView::FileDownloader::Download const&) override;
     virtual void download_removed(u64, WebView::IsPrivate) override;
 
+    bool m_thoth_sidebar_toolbar { false };
+    QWidget* m_sidebar_navigation_buttons { nullptr };
     QWidget* m_toolbar_container { nullptr };
     QWidget* m_toolbar { nullptr };
     QWidget* m_performance_monitor { nullptr };
@@ -167,6 +174,7 @@ private:
     QSpacerItem* m_sidebar_toggle_navigation_spacer { nullptr };
     QToolButton* m_left_toggle_vertical_tabs_expanded_button { nullptr };
     QToolButton* m_right_toggle_vertical_tabs_expanded_button { nullptr };
+    QToolButton* m_sidebar_reload_button { nullptr };
     WindowControlButton* m_minimize_window_button { nullptr };
     WindowControlButton* m_maximize_window_button { nullptr };
     WindowControlButton* m_close_window_button { nullptr };
@@ -188,6 +196,7 @@ private:
     HyperlinkLabel* m_hover_label { nullptr };
     QIcon m_favicon;
     QTimer* m_loading_animation_timer { nullptr };
+    TabLoadingOverlay* m_loading_overlay { nullptr };
     bool m_is_loading { false };
     bool m_is_updating_chrome_style { false };
     bool m_vertical_tabs_enabled { false };

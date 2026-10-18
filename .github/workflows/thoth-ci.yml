@@ -1,0 +1,62 @@
+name: Thoth CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: thoth-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Static checks and Thoth Qt tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.10.3'
+          host: linux
+          target: desktop
+          cache: true
+
+      - name: Check Python scripts
+        run: |
+          python3 -m py_compile \
+            Meta/thoth.py \
+            Meta/thoth_smoke_test.py \
+            Meta/thoth_release_check.py \
+            Meta/thoth_e2e_test.py \
+            Meta/thoth_upstream_report.py \
+            Meta/package_thoth.py \
+            Meta/package-macos-app-bundle.py \
+            Meta/generate-style-load-page.py \
+            Meta/measure-style-load.py \
+            Meta/measure-style-amplification.py \
+            Meta/measure-style-scale.py
+
+      - name: Check patch formatting
+        run: git diff --check
+
+      - name: Configure Thoth Qt tests
+        run: cmake -S UI/Qt/Thoth/Tests -B build/thoth-tests -G Ninja
+
+      - name: Build Thoth Qt tests
+        run: cmake --build build/thoth-tests
+
+      - name: Run Thoth Qt tests
+        run: ctest --test-dir build/thoth-tests --output-on-failure

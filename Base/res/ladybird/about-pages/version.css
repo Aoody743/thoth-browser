@@ -1,0 +1,116 @@
+/*
+ * Copyright (c) 2026-present, the Ladybird developers.
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+.version-page {
+    width: min(100%, 800px);
+    margin: 0 auto;
+    padding: 12px 0 44px;
+}
+
+body {
+    display: block;
+}
+
+.version-page .about-brand {
+    gap: 20px;
+}
+
+.version-page .about-mark,
+.version-page .about-mark picture,
+.version-page .about-mark img {
+    width: 76px;
+    height: 76px;
+}
+
+.version-page .about-mark {
+    flex-basis: 76px;
+    border-radius: 22px;
+}
+
+.version-page .about-subtitle {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.version-page .about-subtitle strong {
+    color: var(--about-ink);
+    font-weight: 600;
+}
+
+.version-group + .version-group {
+    margin-top: 25px;
+}
+
+.version-heading {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    padding-bottom: 9px;
+    border-bottom: 1px solid var(--about-line);
+}
+
+.version-heading h2 {
+    margin: 0;
+    color: var(--about-ink);
+    font-size: 13px;
+    font-weight: 650;
+}
+
+.version-list {
+    margin: 0;
+}
+
+.version-row {
+    display: grid;
+    grid-template-columns: minmax(118px, 0.28fr) minmax(0, 1fr);
+    gap: 16px;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--about-line);
+}
+
+.version-row:last-child {
+    border-bottom: none;
+}
+
+.version-row dt {
+    color: var(--about-muted);
+    font-size: 11px;
+}
+
+.version-row dd {
+    min-width: 0;
+    margin: 0;
+    color: var(--about-ink);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+}
+
+#user-agent {
+    color: var(--about-muted);
+    font-size: 10px;
+}
+
+@media (max-width: 520px) {
+    .version-page .about-mark,
+    .version-page .about-mark picture,
+    .version-page .about-mark img {
+        width: 64px;
+        height: 64px;
+    }
+
+    .version-page .about-mark {
+        flex-basis: 64px;
+        border-radius: 19px;
+    }
+
+    .version-row {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+}

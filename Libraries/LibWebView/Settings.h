@@ -7,6 +7,7 @@
 #pragma once
 
 #include <AK/Array.h>
+#include <AK/ByteString.h>
 #include <AK/HashMap.h>
 #include <AK/HashTable.h>
 #include <AK/JsonValue.h>
@@ -25,6 +26,10 @@ namespace WebView {
 struct Appearance {
     bool show_menu_bar { false };
     bool show_bookmarks_bar { true };
+    ByteString color_scheme { "system" };
+    ByteString browser_ui_font { "system" };
+    ByteString browser_color_palette { "lavender" };
+    ByteString browser_icon_weight { "balanced" };
 };
 
 struct ContentSettings {
@@ -113,6 +118,7 @@ public:
 
     virtual void new_tab_page_url_changed() { }
     virtual void languages_changed() { }
+    virtual void interface_language_changed() { }
     virtual void appearance_changed() { }
     virtual void content_settings_changed() { }
     virtual void tab_settings_changed() { }
@@ -146,6 +152,9 @@ public:
     static Vector<String> parse_json_languages(JsonValue const&);
     Vector<String> const& languages() const { return m_languages; }
     void set_languages(Vector<String>);
+
+    ByteString const& interface_language() const { return m_interface_language; }
+    void set_interface_language(StringView);
 
     static Appearance parse_appearance(JsonValue const&);
     Appearance const& appearance() const { return m_appearance; }
@@ -243,6 +252,7 @@ private:
     bool m_first_run_complete { false };
     URL::URL m_new_tab_page_url;
     Vector<String> m_languages;
+    ByteString m_interface_language { "en" };
 
     Appearance m_appearance;
     ContentSettings m_content_settings;

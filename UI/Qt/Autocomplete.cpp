@@ -26,6 +26,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPalette>
+#include <QPen>
 #include <QPixmap>
 #include <QPoint>
 #include <QStyledItemDelegate>
@@ -104,23 +105,10 @@ static QFont autocomplete_secondary_font()
     return QApplication::font();
 }
 
-static bool autocomplete_color_is_dark(QColor const& color)
-{
-    return color.lightness() < 128;
-}
-
 static QColor autocomplete_selection_fill(QPalette const& palette)
 {
-    auto text = ChromeStyle::chrome_text(palette);
-    if (!autocomplete_color_is_dark(text))
-        return ChromeStyle::mix(ChromeStyle::chrome_surface_pressed(palette), text, 0.06);
-
-    auto surface = palette.color(QPalette::Base);
-    if (autocomplete_color_is_dark(surface))
-        surface = palette.color(QPalette::Window);
-    if (autocomplete_color_is_dark(surface))
-        surface = QColor(255, 255, 255);
-    return ChromeStyle::mix(surface, QColor(0, 0, 0), 0.08);
+    auto accent = ChromeStyle::chrome_accent(palette);
+    return ChromeStyle::mix(ChromeStyle::chrome_surface(palette), accent, ChromeStyle::is_dark(palette) ? 0.26 : 0.13);
 }
 
 class AutocompleteModel final : public QAbstractListModel {
@@ -248,22 +236,30 @@ public:
         painter->save();
         bool selected = option.state & QStyle::State_Selected;
         bool hovered = option.state & QStyle::State_MouseOver;
+        auto source = static_cast<WebView::AutocompleteSuggestionSource>(index.data(SourceRole).toInt());
+        bool history_suggestion = source == WebView::AutocompleteSuggestionSource::History
+            || source == WebView::AutocompleteSuggestionSource::Adaptive;
+        auto card_rect = option.rect.adjusted(4, 2, -4, -2);
         if (selected) {
-            auto rect = option.rect.adjusted(4, 2, -4, -2);
             painter->setRenderHint(QPainter::Antialiasing, true);
-            painter->setPen(Qt::NoPen);
+            painter->setPen(history_suggestion ? QPen(ChromeStyle::chrome_accent(option.palette), 1) : QPen(Qt::NoPen));
             painter->setBrush(autocomplete_selection_fill(option.palette));
-            painter->drawRoundedRect(rect, 7, 7);
+            painter->drawRoundedRect(card_rect, 8, 8);
         } else if (hovered) {
-            auto rect = option.rect.adjusted(4, 2, -4, -2);
             painter->setRenderHint(QPainter::Antialiasing, true);
-            painter->setPen(Qt::NoPen);
+            painter->setPen(history_suggestion ? QPen(ChromeStyle::chrome_border(option.palette), 1) : QPen(Qt::NoPen));
             painter->setBrush(ChromeStyle::chrome_surface_hover(option.palette));
-            painter->drawRoundedRect(rect, 7, 7);
+            painter->drawRoundedRect(card_rect, 8, 8);
+        } else if (history_suggestion) {
+            // History results in the sidebar address field need their own visual
+            // surfaces so they remain easy to scan against the popup background.
+            painter->setRenderHint(QPainter::Antialiasing, true);
+            painter->setPen(QPen(ChromeStyle::chrome_border(option.palette), 1));
+            painter->setBrush(ChromeStyle::chrome_surface_recessed(option.palette));
+            painter->drawRoundedRect(card_rect, 8, 8);
         }
 
         auto favicon = index.data(FaviconRole).value<QIcon>();
-        auto source = static_cast<WebView::AutocompleteSuggestionSource>(index.data(SourceRole).toInt());
 
         auto url_text = index.data(UrlRole).toString();
         auto title_text = index.data(TitleRole).toString();
@@ -306,7 +302,7 @@ public:
             int block_y = option.rect.top() + (option.rect.height() - block_height) / 2;
 
             auto primary_color = ChromeStyle::chrome_text(option.palette);
-            draw_autocomplete_text(*painter, QRect(text_x, block_y, text_width, primary_fm.height()), title_text, highlight_input, autocomplete_primary_font(), primary_color, primary_color);
+            draw_autocomplete_text(*painter, QRect(text_x, block_y, text_width, primary_fm.height()), title_text, highlight_input, autocomplete_primary_font(), primary_color, ChromeStyle::chrome_accent(option.palette));
 
             painter->setFont(autocomplete_secondary_font());
             auto secondary_color = ChromeStyle::chrome_muted_text(option.palette);
@@ -314,13 +310,13 @@ public:
             painter->setPen(secondary_color);
             draw_autocomplete_text(*painter,
                 QRect(text_x, block_y + primary_fm.height() + CELL_LABEL_VERTICAL_SPACING, text_width, secondary_fm.height()),
-                secondary_text, highlight_input, autocomplete_secondary_font(), secondary_color, ChromeStyle::chrome_text(option.palette), emphasize_origin);
+                secondary_text, highlight_input, autocomplete_secondary_font(), secondary_color, ChromeStyle::chrome_accent(option.palette), emphasize_origin);
         } else {
             painter->setFont(QApplication::font());
             auto text_color = source == WebView::AutocompleteSuggestionSource::Search
                 ? ChromeStyle::chrome_muted_text(option.palette)
                 : ChromeStyle::chrome_text(option.palette);
-            draw_autocomplete_text(*painter, QRect(text_x, option.rect.top(), text_width, option.rect.height()), url_text, highlight_input, autocomplete_primary_font(), text_color, ChromeStyle::chrome_text(option.palette), emphasize_origin);
+            draw_autocomplete_text(*painter, QRect(text_x, option.rect.top(), text_width, option.rect.height()), url_text, highlight_input, autocomplete_primary_font(), text_color, ChromeStyle::chrome_accent(option.palette), emphasize_origin);
         }
 
         painter->restore();
@@ -357,9 +353,10 @@ void Autocomplete::create_popup()
     m_popup->setAttribute(Qt::WA_ShowWithoutActivating);
     m_popup->setAttribute(Qt::WA_X11DoNotAcceptFocus);
     m_popup->setFocusPolicy(Qt::NoFocus);
-    m_popup->setFrameShape(QFrame::StyledPanel);
-    m_popup->setFrameShadow(QFrame::Raised);
-    m_popup->setAutoFillBackground(true);
+    m_popup->setFrameShape(QFrame::NoFrame);
+    m_popup->setFrameShadow(QFrame::Plain);
+    m_popup->setAttribute(Qt::WA_TranslucentBackground);
+    m_popup->setAutoFillBackground(false);
     m_popup->hide();
 
     m_list_view = new QListView(m_popup);
@@ -375,7 +372,7 @@ void Autocomplete::create_popup()
     update_chrome_style();
 
     auto* layout = new QVBoxLayout(m_popup);
-    layout->setContentsMargins(0, POPUP_PADDING, 0, POPUP_PADDING);
+    layout->setContentsMargins(1, POPUP_PADDING, 1, POPUP_PADDING);
     layout->setSpacing(0);
     layout->addWidget(m_list_view);
 

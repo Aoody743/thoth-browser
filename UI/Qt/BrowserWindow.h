@@ -143,6 +143,8 @@ public:
     WebView::BrowsingSession& session() const { return *m_session; }
     Optional<WebView::SessionWindowId> session_window_id() const { return m_session_window_id; }
 
+    Thoth::Sidebar* thoth_sidebar() const { return m_tabs_container->sidebar(); }
+
     int tab_count() { return m_tabs_container->count(); }
     int tab_index(Tab*);
 
@@ -176,6 +178,7 @@ public:
     void on_devtools_disabled();
 
     void set_window_rect(Optional<Web::DevicePixels> x, Optional<Web::DevicePixels> y, Optional<Web::DevicePixels> width, Optional<Web::DevicePixels> height);
+    bool start_window_move();
 
 public slots:
     void device_pixel_ratio_changed(qreal dpi);
@@ -208,6 +211,7 @@ private:
     virtual void closeEvent(QCloseEvent*) override;
 
     virtual void appearance_changed() override;
+    virtual void interface_language_changed() override;
     virtual void config_variable_changed(WebView::ConfigVariableID) override;
 
     Tab& create_new_tab(Web::HTML::ActivateTab, Optional<WebView::CanonicalTraversable&>);
@@ -244,7 +248,6 @@ private:
     void update_window_decoration_state();
     static bool uses_client_side_decorations();
     void toggle_window_maximized();
-    bool start_window_move();
     bool connect_window_screen_changed_signal();
     void disconnect_window_screen_changed_signal();
     void connect_screen_signals(QScreen*);
@@ -267,6 +270,7 @@ private:
     TabWidget* m_tabs_container { nullptr };
     Tab* m_current_tab { nullptr };
     DevToolsBanner* m_devtools_banner { nullptr };
+    QWidget* m_window_drag_strip { nullptr };
 
     QWidget* m_menu_bar_window_controls { nullptr };
     QToolButton* m_menu_bar_minimize_window_button { nullptr };

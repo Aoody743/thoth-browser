@@ -12,7 +12,7 @@ can vary exactly one property of the page - which is the method that found what 
 
 Then, from the build directory:
 
-    ./bin/Ladybird.app/Contents/MacOS/WebDriver --headless -p 4540 &
+    ./bin/Thoth\ Browser.app/Contents/MacOS/WebDriver --headless -p 4540 &
     ./Meta/measure-style-load.py 4540 file:///tmp/style-load.html
 """
 

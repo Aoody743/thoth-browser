@@ -423,7 +423,8 @@ def run_main(host_system: HostSystem, build_dir: Path, target: str, args: list[s
         "WebDriver",
         "WebWorker",
     ):
-        run_args.append(str(build_dir.joinpath("bin", "Ladybird.app", "Contents", "MacOS", target)))
+        executable = "Thoth Browser" if target == "Ladybird" else target
+        run_args.append(str(build_dir.joinpath("bin", "Thoth Browser.app", "Contents", "MacOS", executable)))
     else:
         run_args.append(str(build_dir.joinpath("bin", target)))
 
@@ -447,7 +448,7 @@ def debug_main(host_system: HostSystem, build_dir: Path, target: str, debugger: 
         gdb_args.extend(["-ex" if debugger == "gdb" else "-o", cmd])
 
     if target == "Ladybird" and host_system == HostSystem.macOS:
-        gdb_args.append(str(build_dir.joinpath("bin", "Ladybird.app")))
+        gdb_args.append(str(build_dir.joinpath("bin", "Thoth Browser.app")))
     elif host_system == HostSystem.Windows:
         gdb_args.append(str(build_dir.joinpath("bin", target + ".exe")))
     else:
@@ -464,7 +465,7 @@ def profile_main(host_system: HostSystem, build_dir: Path, target: str, args: li
     valgrind_args = ["valgrind", "--tool=callgrind", "--instr-atstart=yes"]
 
     if target == "Ladybird" and host_system == HostSystem.macOS:
-        valgrind_args.append(str(build_dir.joinpath("bin", "Ladybird.app")))
+        valgrind_args.append(str(build_dir.joinpath("bin", "Thoth Browser.app")))
     else:
         valgrind_args.append(str(build_dir.joinpath("bin", target)))
 

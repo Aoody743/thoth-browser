@@ -6,13 +6,45 @@
 
 #include <LibWebView/Profile.h>
 
+#include <QApplication>
+#include <QGuiApplication>
+#include <QObject>
+#include <QPalette>
+#include <QStyleHints>
+
 #import <Cocoa/Cocoa.h>
 #import <UI/Qt/ApplicationIcon.h>
 
 namespace Ladybird {
 
-void set_profile_application_icon(WebView::Profile const& profile)
+static bool current_appearance_is_dark()
 {
+    auto color_scheme = QGuiApplication::styleHints()->colorScheme();
+    if (color_scheme == Qt::ColorScheme::Dark)
+        return true;
+    if (color_scheme == Qt::ColorScheme::Light)
+        return false;
+    return QApplication::palette().color(QPalette::Window).lightness() < 128;
+}
+
+static void apply_profile_application_icon(WebView::Profile const& profile, bool dark)
+{
+    auto* icon_name = dark ? @"thoth-dark" : @"thoth-light";
+    auto* icon_path = [[NSBundle mainBundle] pathForResource:icon_name ofType:@"png" inDirectory:@"icons"];
+    auto* application_icon = icon_path ? [[NSImage alloc] initWithContentsOfFile:icon_path] : nil;
+    if (!application_icon) {
+        icon_path = [[NSBundle mainBundle] pathForResource:@"app_icon" ofType:@"icns"];
+        application_icon = icon_path ? [[NSImage alloc] initWithContentsOfFile:icon_path] : nil;
+    }
+    if (!application_icon)
+        application_icon = [NSApp applicationIconImage];
+    if (!application_icon)
+        return;
+
+    // Use the icon stored in this app bundle directly. Launch Services may still
+    // have several older Thoth preview bundles registered under the same ID.
+    [NSApp setApplicationIconImage:application_icon];
+
     if (profile.identifier() == "default"sv)
         return;
 
@@ -23,10 +55,6 @@ void set_profile_application_icon(WebView::Profile const& profile)
                                                     length:label.length()
                                                   encoding:NSUTF8StringEncoding]
         uppercaseString];
-    auto* application_icon = [NSApp applicationIconImage];
-    if (!application_icon)
-        return;
-
     NSArray<NSColor*>* badge_colors = @[
         [NSColor colorWithSRGBRed:0.38
                             green:0.52
@@ -96,6 +124,15 @@ void set_profile_application_icon(WebView::Profile const& profile)
                                      return YES;
                                  }];
     [NSApp setApplicationIconImage:profile_icon];
+}
+
+void set_profile_application_icon(WebView::Profile const& profile)
+{
+    apply_profile_application_icon(profile, current_appearance_is_dark());
+
+    QObject::connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, QGuiApplication::instance(), [&profile](Qt::ColorScheme) {
+        apply_profile_application_icon(profile, current_appearance_is_dark());
+    });
 }
 
 }

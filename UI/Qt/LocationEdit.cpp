@@ -16,6 +16,7 @@
 #include <UI/Qt/LocationEdit.h>
 #include <UI/Qt/Menu.h>
 #include <UI/Qt/StringUtils.h>
+#include <UI/Qt/Thoth/Appearance.h>
 
 #include <QAction>
 #include <QApplication>
@@ -288,6 +289,17 @@ void LocationEdit::show_autocomplete()
     m_omnibox.show_all_suggestions();
 }
 
+void LocationEdit::navigate_from_user_input(QString const& input)
+{
+    auto value = input.trimmed();
+    if (value.isEmpty())
+        return;
+
+    setText(value);
+    m_omnibox.begin_editing(ak_string_from_qstring(value));
+    m_omnibox.return_pressed();
+}
+
 void LocationEdit::changeEvent(QEvent* event)
 {
     QLineEdit::changeEvent(event);
@@ -514,7 +526,7 @@ void LocationEdit::resizeEvent(QResizeEvent* event)
 void LocationEdit::update_trailing_item_positions()
 {
     auto button_size = m_leading_icon_button->size();
-    auto y = (height() - button_size.height()) / 2 + (m_leading_icon_button->property("notSecure").toBool() ? 0 : 1);
+    auto y = (height() - button_size.height()) / 2 + 1;
     m_leading_icon_button->move(12, y);
 
     auto trailing_button_size = m_trailing_action_button->size();
@@ -550,13 +562,31 @@ int LocationEdit::trailing_text_margin() const
     return margin;
 }
 
+void LocationEdit::set_sidebar_mode()
+{
+    m_sidebar_mode = true;
+    setFixedHeight(34);
+    update_chrome_style();
+}
+
 void LocationEdit::update_chrome_style()
 {
     if (m_is_updating_chrome_style)
         return;
 
     m_is_updating_chrome_style = true;
-    setStyleSheet(ChromeStyle::location_edit_style_sheet(palette()));
+    auto style = ChromeStyle::location_edit_style_sheet(palette());
+    if (m_sidebar_mode) {
+        bool dark = ChromeStyle::is_dark(palette());
+        auto accent = QColor(Thoth::browser_palette_accent(qApp->property("ThothColorPalette").toString(), dark));
+        if (!accent.isValid())
+            accent = ChromeStyle::chrome_accent(palette());
+        auto background = ChromeStyle::chrome_surface(palette());
+        auto hover = ChromeStyle::chrome_surface_hover(palette());
+        style += QString("QLineEdit#LadybirdLocationEdit { background: %1; border: 1px solid transparent; border-radius: 9px; min-height: 32px; } QLineEdit#LadybirdLocationEdit:hover { background: %2; border-color: transparent; } QLineEdit#LadybirdLocationEdit:focus { background: %2; border: 1px solid %3; }")
+            .arg(background.name(), hover.name(), accent.name());
+    }
+    setStyleSheet(style);
     m_is_updating_chrome_style = false;
     update_zoom_indicator();
 }
@@ -615,6 +645,7 @@ void LocationEdit::update_location_icon()
         m_leading_icon_button->setText({});
         m_leading_icon_button->setIcon({});
         m_leading_icon_button->setToolTip({});
+        m_leading_icon_button->setAccessibleName({});
         m_text_leading_margin = 0;
         update_text_margins();
     };
@@ -627,6 +658,7 @@ void LocationEdit::update_location_icon()
         m_leading_icon_button->setIconSize({ 18, 18 });
         m_leading_icon_button->setFixedSize(22, 22);
         m_leading_icon_button->setToolTip(tooltip);
+        m_leading_icon_button->setAccessibleName(tooltip);
         m_leading_icon_button->show();
         position_indicator(1);
         m_text_leading_margin = 22;
@@ -635,16 +667,16 @@ void LocationEdit::update_location_icon()
 
     auto show_not_secure_indicator = [&] {
         update_indicator_style(true);
-        m_leading_icon_button->setToolButtonStyle(Qt::ToolButtonTextOnly);
-        m_leading_icon_button->setIcon({});
-        m_leading_icon_button->setText("Not secure");
-
-        auto width = m_leading_icon_button->fontMetrics().horizontalAdvance("Not secure") + 18;
-        m_leading_icon_button->setFixedSize(width, 22);
-        m_leading_icon_button->setToolTip("Not secure");
+        m_leading_icon_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+        m_leading_icon_button->setText({});
+        m_leading_icon_button->setIcon(create_chrome_icon(ChromeIcon::Unlock, palette()));
+        m_leading_icon_button->setIconSize({ 18, 18 });
+        m_leading_icon_button->setFixedSize(22, 22);
+        m_leading_icon_button->setToolTip("Connection is not secure");
+        m_leading_icon_button->setAccessibleName("Connection is not secure");
         m_leading_icon_button->show();
-        position_indicator(0);
-        m_text_leading_margin = width;
+        position_indicator(1);
+        m_text_leading_margin = 22;
         update_text_margins();
     };
 

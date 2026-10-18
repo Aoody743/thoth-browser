@@ -27,6 +27,7 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 
 namespace {
 
@@ -559,6 +560,14 @@ ErrorOr<int> ladybird_main(Main::Arguments arguments)
     VERIFY(setenv("XDG_CONFIG_HOME", test_directory.characters(), 1) == 0);
     VERIFY(setenv("XDG_DOWNLOAD_DIR", test_directory.characters(), 1) == 0);
 
+    // Startup must not sweep a fresh profile's default download directory.
+    auto unrelated_partial = ByteString::formatted("{}/unrelated.1.{}.download", test_directory, generate_random_uuid());
+    {
+        auto file = TRY(Core::File::open(unrelated_partial, Core::File::OpenMode::Write));
+    }
+    timeval old_times[2] {};
+    VERIFY(utimes(unrelated_partial.characters(), old_times) == 0);
+
     signal(SIGPIPE, SIG_IGN);
 
 #if defined(LADYBIRD_BINARY_PATH)
@@ -566,6 +575,8 @@ ErrorOr<int> ladybird_main(Main::Arguments arguments)
 #else
     auto app = TRY(TestApplication::create(arguments, OptionalNone {}));
 #endif
+
+    VERIFY(FileSystem::exists(unrelated_partial));
 
     {
         auto response_body = make_body(4 * KiB);

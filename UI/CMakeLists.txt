@@ -9,22 +9,37 @@ if (APPLE)
 endif()
 
 function(create_ladybird_bundle target_name)
+    set(THOTH_BUNDLE_IDENTIFIER "thoth.aoody" CACHE STRING "Thoth Browser bundle identifier")
+    set(THOTH_BUNDLE_VERSION "2.0.0" CACHE STRING "Thoth Browser bundle version")
+    set(THOTH_VERSION "2.0.0" CACHE STRING "Thoth Browser bundle version" FORCE)
+    if (APPLE)
+        set(THOTH_MACOS_DEPLOYMENT_TARGET "${CMAKE_OSX_DEPLOYMENT_TARGET}")
+        configure_file(
+            "${LADYBIRD_SOURCE_DIR}/UI/Info.plist"
+            "${CMAKE_CURRENT_BINARY_DIR}/Thoth-Info.plist"
+            @ONLY
+        )
+        set(thoth_info_plist "${CMAKE_CURRENT_BINARY_DIR}/Thoth-Info.plist")
+    else()
+        set(thoth_info_plist "${LADYBIRD_SOURCE_DIR}/UI/Info.plist")
+    endif()
     set_target_properties(${target_name} PROPERTIES
         OUTPUT_NAME "Ladybird"
-        MACOSX_BUNDLE_GUI_IDENTIFIER org.ladybird.Ladybird
-        MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
-        MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
-        MACOSX_BUNDLE_INFO_PLIST "${LADYBIRD_SOURCE_DIR}/UI/Info.plist"
+        MACOSX_BUNDLE_GUI_IDENTIFIER ${THOTH_BUNDLE_IDENTIFIER}
+        MACOSX_BUNDLE_BUNDLE_VERSION ${THOTH_BUNDLE_VERSION}
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${THOTH_VERSION}"
+        MACOSX_BUNDLE_INFO_PLIST "${thoth_info_plist}"
         MACOSX_BUNDLE TRUE
         WIN32_EXECUTABLE TRUE
-        XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER org.ladybird.Ladybird
+        XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER ${THOTH_BUNDLE_IDENTIFIER}
     )
 
     if (APPLE)
+        set_target_properties(${target_name} PROPERTIES OUTPUT_NAME "Thoth Browser")
         set(bundle_dir "$<TARGET_BUNDLE_DIR:${target_name}>")
         add_custom_command(TARGET ${target_name} POST_BUILD
             COMMAND "${CMAKE_COMMAND}" -E make_directory "${bundle_dir}/Contents/Resources"
-            COMMAND "iconutil" --convert icns "${LADYBIRD_SOURCE_DIR}/UI/Icons/macos/app_icon.iconset" --output "${bundle_dir}/Contents/Resources/app_icon.icns"
+            COMMAND "${CMAKE_COMMAND}" -E copy "${LADYBIRD_SOURCE_DIR}/UI/Qt/Thoth/Branding/app_icon.icns" "${bundle_dir}/Contents/Resources/app_icon.icns"
         )
 
         # Note: This symlink is removed in the install commands

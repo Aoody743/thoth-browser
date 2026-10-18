@@ -264,7 +264,7 @@ ProcessManagerWindow::ProcessManagerWindow(WebView::ProcessManager& process_mana
     m_summary = new QLabel(this);
     m_summary->setAttribute(Qt::WA_MacSmallSize);
     m_summary->setAlignment(Qt::AlignRight);
-    m_summary->setToolTip(tr("Total CPU and memory for all Ladybird processes. Updates every second."));
+    m_summary->setToolTip(tr("Total CPU and memory for all Thoth Browser processes. Updates every second."));
     summary_layout->addWidget(m_summary);
     layout->addLayout(summary_layout);
 
@@ -366,7 +366,9 @@ void ProcessManagerWindow::refresh()
     double total_cpu = 0;
     u64 total_memory = 0;
     QLocale locale;
-    auto browser_icon = load_icon_from_uri("resource://icons/48x48/app-browser.png"sv);
+    auto browser_icon = load_icon_from_uri(ChromeStyle::is_dark(palette())
+            ? "resource://icons/thoth-dark.png"sv
+            : "resource://icons/thoth-light.png"sv);
     auto web_content_icon = create_chrome_icon(ChromeIcon::Globe, palette());
     auto muted_palette = palette();
     auto muted_color = ChromeStyle::chrome_muted_text(palette());

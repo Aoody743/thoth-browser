@@ -9,7 +9,6 @@
 #include <AK/kmalloc.h>
 #include <LibWebView/ContentBlocking.h>
 
-#include <QIcon>
 #include <QToolButton>
 
 namespace Ladybird {
@@ -29,7 +28,6 @@ private:
     virtual void paintEvent(QPaintEvent*) override;
     virtual QSize sizeHint() const override { return { 34, 34 }; }
 
-    QIcon m_logo { ":/Icons/ladybird.png" };
     WebView::ContentBlockingSnapshot m_snapshot;
     bool m_show_count_badge { true };
 };

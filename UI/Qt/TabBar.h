@@ -13,11 +13,14 @@
 #include <LibWebView/Settings.h>
 #include <UI/Qt/Tab.h>
 
+#include <QList>
 #include <QPointer>
 #include <QPushButton>
 #include <QStackedWidget>
 #include <QTabBar>
 #include <QWidget>
+#include <UI/Qt/Thoth/SplitView.h>
+#include <UI/Qt/Thoth/Sidebar.h>
 
 class QAction;
 class QBoxLayout;
@@ -155,7 +158,15 @@ public:
     int current_index() const { return m_tab_bar->currentIndex(); }
     void set_current_index(int index) { m_tab_bar->setCurrentIndex(index); }
 
-    Tab* tab(int index) const { return as<Tab>(m_stacked_widget->widget(index)); }
+    Tab* tab(int index) const { return index >= 0 && index < m_pages.size() ? m_pages[index] : nullptr; }
+    void toggle_split_view();
+    void enable_thoth_sidebar();
+    Thoth::Sidebar* sidebar() const { return m_sidebar; }
+    Thoth::SplitView* split_view() const { return m_split_view; }
+    void show_pages(Tab* left, Tab* right, Tab* active, double ratio);
+    void mark_active_page(Tab*);
+    void clear_split_presentation();
+    bool is_split_view() const { return m_split_view->secondary() != nullptr; }
     void set_current_tab(Tab*);
 
     int index_of(Tab* widget) const;
@@ -168,6 +179,7 @@ public:
     void set_new_tab_action(QAction* action);
     void set_window_controls_visible(bool);
     void update_window_button_icons();
+    void refresh_chrome_appearance();
     void set_vertical_tabs_enabled(bool);
     void set_vertical_tabs_expanded(bool);
     void set_vertical_tabs_expand_on_hover(bool);
@@ -231,6 +243,11 @@ private:
     void size_hidden_pages_like_the_current_one();
 
     QStackedWidget* m_stacked_widget { nullptr };
+    QList<Tab*> m_pages;
+    Thoth::SplitView* m_split_view { nullptr };
+    Thoth::Sidebar* m_sidebar { nullptr };
+    QSplitter* m_thoth_layout { nullptr };
+    bool m_showing_pages { false };
     QToolButton* m_new_tab_button { nullptr };
     QToolButton* m_minimize_window_button { nullptr };
     QToolButton* m_maximize_window_button { nullptr };

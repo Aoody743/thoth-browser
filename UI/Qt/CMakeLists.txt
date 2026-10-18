@@ -4,6 +4,51 @@ set(CMAKE_AUTOUIC ON)
 
 find_package(Qt6 6.10 REQUIRED COMPONENTS Core Widgets)
 
+# Generate the app and in-browser marks from the checked-in Thoth artwork before
+# AUTORCC reads the PNGs or the macOS bundle copies its icon.
+add_executable(thoth_icon_generator EXCLUDE_FROM_ALL Thoth/Branding/GenerateIcon.cpp)
+target_link_libraries(thoth_icon_generator PRIVATE Qt::Core Qt::Gui Qt::Widgets)
+
+set(THOTH_BRANDING_DIR "${LADYBIRD_SOURCE_DIR}/UI/Qt/Thoth/Branding")
+set(THOTH_ICON_OUTPUTS
+    "${LADYBIRD_SOURCE_DIR}/Base/res/icons/thoth.png"
+    "${LADYBIRD_SOURCE_DIR}/Base/res/icons/thoth-light.png"
+    "${LADYBIRD_SOURCE_DIR}/Base/res/icons/thoth-dark.png"
+    "${THOTH_BRANDING_DIR}/thoth.png"
+    "${THOTH_BRANDING_DIR}/thoth-light.png"
+    "${THOTH_BRANDING_DIR}/thoth-dark.png"
+)
+foreach(size IN ITEMS 16 32 128 256 512)
+    list(APPEND THOTH_ICON_OUTPUTS
+        "${THOTH_BRANDING_DIR}/app_icon.iconset/icon_${size}x${size}.png"
+        "${THOTH_BRANDING_DIR}/app_icon.iconset/icon_${size}x${size}@2x.png"
+    )
+endforeach()
+set(THOTH_ICON_POSTPROCESS_COMMAND)
+if (APPLE)
+    list(APPEND THOTH_ICON_OUTPUTS "${THOTH_BRANDING_DIR}/app_icon.icns")
+    set(THOTH_ICON_POSTPROCESS_COMMAND
+        COMMAND iconutil -c icns "${THOTH_BRANDING_DIR}/app_icon.iconset"
+            -o "${THOTH_BRANDING_DIR}/app_icon.icns"
+    )
+endif()
+add_custom_command(
+    OUTPUT ${THOTH_ICON_OUTPUTS}
+    COMMAND "$<TARGET_FILE:thoth_icon_generator>"
+    ${THOTH_ICON_POSTPROCESS_COMMAND}
+    DEPENDS
+        thoth_icon_generator
+        "${THOTH_BRANDING_DIR}/GenerateIcon.cpp"
+        "${THOTH_BRANDING_DIR}/marks/thoth-mark-dark.png"
+        "${THOTH_BRANDING_DIR}/marks/thoth-mark-light.png"
+        "${THOTH_BRANDING_DIR}/originals/thoth-dark.png"
+        "${THOTH_BRANDING_DIR}/originals/thoth-light.png"
+    WORKING_DIRECTORY "${LADYBIRD_SOURCE_DIR}"
+    COMMENT "Generating Thoth Browser app and UI icons"
+    VERBATIM
+)
+add_custom_target(thoth_branding DEPENDS ${THOTH_ICON_OUTPUTS})
+
 if (NOT APPLE)
     find_package(Qt6 6.10 REQUIRED COMPONENTS Positioning)
 endif()
@@ -21,6 +66,7 @@ if (LINUX AND NOT ANDROID)
 endif()
 
 qt_add_executable(ladybird main.cpp)
+add_dependencies(ladybird thoth_branding)
 target_sources(ladybird PRIVATE
     Application.cpp
     Autocomplete.cpp
@@ -50,8 +96,13 @@ target_sources(ladybird PRIVATE
     SelectDropdown.cpp
     Settings.cpp
     StringUtils.cpp
+    Thoth/SplitView.cpp
+    Thoth/Sidebar.cpp
+    Thoth/Localization.cpp
+    Thoth/SidebarModel.cpp
     Tab.cpp
     TabBar.cpp
+    Thoth/Appearance.cpp
     WebContentView.cpp
     WindowControlButton.cpp
     ladybird.qrc
@@ -177,6 +228,7 @@ qt_deploy_runtime_dependencies(
 endif()
 
 if (BUILD_TESTING)
+    add_subdirectory(Thoth/Tests)
     if (APPLE)
         add_library(NativeTextEditingTestMain OBJECT
             ${LADYBIRD_SOURCE_DIR}/Tests/UI/Qt/NativeTextEditingTestMain.mm

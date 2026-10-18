@@ -1,6 +1,11 @@
 <!DOCTYPE RCC><RCC version="1.0">
     <qresource>
-        <file>../Icons/ladybird.png</file>
+        <file>Thoth/Branding/thoth.png</file>
+        <file>Thoth/Branding/thoth-light.png</file>
+        <file>Thoth/Branding/thoth-dark.png</file>
+        <file>Thoth/Branding/Fonts/BricolageGrotesque[opsz,wdth,wght].ttf</file>
+        <file>Thoth/Branding/Fonts/Fraunces[SOFT,WONK,opsz,wght].ttf</file>
+        <file>Thoth/Branding/Fonts/SpaceGrotesk[wght].ttf</file>
         <file>OrcaScripts/Ladybird/__init__.py</file>
         <file>OrcaScripts/Ladybird/script.py</file>
         <file>OrcaScripts/Ladybird/script_utilities.py</file>

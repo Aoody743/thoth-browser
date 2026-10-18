@@ -22,7 +22,7 @@
       "description": "Release build",
       "binaryDir": "$env{LADYBIRD_SOURCE_DIR}/Build/release",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_BUILD_TYPE": "Release",
         "LADYBIRD_VCPKG_TYPE": "release"
       }
     },

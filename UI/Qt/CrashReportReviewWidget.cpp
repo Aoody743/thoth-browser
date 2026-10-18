@@ -157,7 +157,7 @@ CrashReportReviewWidget::CrashReportReviewWidget(QString exit_text, QWidget* par
 
     auto* contents = new QWidget(m_review_page);
     auto* contents_layout = create_group_layout(contents);
-    auto* contents_summary = create_label(tr("Includes technical crash details, your Ladybird version and platform."), contents);
+    auto* contents_summary = create_label(tr("Includes technical crash details, your Thoth Browser version and platform."), contents);
     contents_summary->setForegroundRole(QPalette::PlaceholderText);
     contents_layout->addWidget(contents_summary);
     m_details = new QFrame(contents);
@@ -442,7 +442,7 @@ void CrashReportReviewWidget::show_retry(String const& reason, u32 retry_number,
 void CrashReportReviewWidget::show_sent()
 {
     m_progress->setValue(100);
-    show_outcome(tr("Report sent"), tr("Thank you for helping Ladybird."));
+    show_outcome(tr("Report sent"), tr("Thank you for your report."));
 }
 
 void CrashReportReviewWidget::show_declined()

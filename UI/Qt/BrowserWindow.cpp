@@ -28,10 +28,14 @@
 #endif
 #include <UI/Qt/Settings.h>
 #include <UI/Qt/TabBar.h>
+#include <UI/Qt/Thoth/Appearance.h>
+#include <UI/Qt/Thoth/Localization.h>
+#include <UI/Qt/Thoth/Sidebar.h>
 #include <UI/Qt/WebContentView.h>
 #include <UI/Qt/WindowControlButton.h>
 
 #include <QAbstractButton>
+#include <QAction>
 #include <QApplication>
 #include <QCursor>
 #include <QGuiApplication>
@@ -58,12 +62,56 @@ namespace Ladybird {
 static constexpr auto AUDIO_STATE_BUTTON_POSITION = QTabBar::LeftSide;
 static constexpr auto TAB_CLOSE_BUTTON_POSITION = QTabBar::RightSide;
 static constexpr auto WINDOW_DRAG_REGION_PROPERTY = "LadybirdWindowDragRegion";
+static constexpr int WINDOW_DRAG_REGION_HEIGHT = 28;
 static constexpr int WINDOW_RESIZE_BORDER_WIDTH = 6;
 static constexpr int WINDOW_RESIZE_CORNER_WIDTH = WINDOW_RESIZE_BORDER_WIDTH * 2;
 #if defined(AK_OS_MACOS)
 static constexpr int NATIVE_WINDOW_CONTROL_X_OFFSET = 6;
 static constexpr int NATIVE_WINDOW_CONTROL_Y_OFFSET = 6;
 #endif
+
+static bool has_visible_menu_item(QMenu const& menu)
+{
+    for (auto* action : menu.actions()) {
+        if (action->isVisible() && !action->isSeparator())
+            return true;
+    }
+    return false;
+}
+
+static void update_browser_menu_visibility(QMenu& menu)
+{
+    auto actions = menu.actions();
+    for (auto* action : actions) {
+        if (auto* submenu = action->menu()) {
+            update_browser_menu_visibility(*submenu);
+            action->setVisible(has_visible_menu_item(*submenu));
+        }
+    }
+
+    for (qsizetype i = 0; i < static_cast<qsizetype>(actions.size()); ++i) {
+        auto* action = actions[static_cast<size_t>(i)];
+        if (!action->isSeparator())
+            continue;
+
+        bool has_item_before = false;
+        for (qsizetype previous = i - 1; previous >= 0; --previous) {
+            auto* candidate = actions[static_cast<size_t>(previous)];
+            if (candidate->isSeparator())
+                break;
+            has_item_before |= candidate->isVisible();
+        }
+
+        bool has_item_after = false;
+        for (auto next = i + 1; next < static_cast<qsizetype>(actions.size()); ++next) {
+            auto* candidate = actions[static_cast<size_t>(next)];
+            if (candidate->isSeparator())
+                break;
+            has_item_after |= candidate->isVisible();
+        }
+        action->setVisible(has_item_before && has_item_after);
+    }
+}
 
 static bool should_use_screen_signal_for_dpi_changes()
 {
@@ -212,17 +260,6 @@ void ExitFullscreenButton::animate_show()
     m_widget_animation->start();
 }
 
-static QIcon const& app_icon()
-{
-    static QIcon icon;
-    if (icon.isNull()) {
-        QPixmap pixmap;
-        pixmap.load(":/Icons/ladybird.png");
-        icon = QIcon(pixmap);
-    }
-    return icon;
-}
-
 BrowserWindow::BrowserWindow(Vector<URL::URL> const& initial_urls, IsPopupWindow is_popup_window, WebView::IsPrivate is_private, Tab* parent_tab, Optional<WebView::CanonicalTraversable&> traversable)
     : m_is_private(is_private)
     , m_session(WebView::Application::session_for_new_view(is_private))
@@ -241,10 +278,11 @@ BrowserWindow::BrowserWindow(Vector<URL::URL> const& initial_urls, IsPopupWindow
     setWindowFlag(Qt::FramelessWindowHint, uses_client_side_decorations());
 #endif
     setAttribute(Qt::WA_OpaquePaintEvent);
-    setWindowIcon(app_icon());
+    setWindowIcon(Thoth::brand_logo_icon(ChromeStyle::is_dark(palette())));
     qApp->installEventFilter(this);
     update_window_border();
 
+    if (is_popup_window == IsPopupWindow::No) m_tabs_container->enable_thoth_sidebar();
     update_tabs_display();
 
     // Listen for DPI changes
@@ -306,6 +344,16 @@ BrowserWindow::BrowserWindow(Vector<URL::URL> const& initial_urls, IsPopupWindow
     auto* main_layout = new QVBoxLayout(main_widget);
     main_layout->setContentsMargins(0, 0, 0, 0);
     main_layout->setSpacing(0);
+    auto* window_drag_strip = new QWidget(main_widget);
+    window_drag_strip->setObjectName("ThothWindowDragStrip");
+    window_drag_strip->setProperty(WINDOW_DRAG_REGION_PROPERTY, true);
+    window_drag_strip->setAttribute(Qt::WA_TranslucentBackground);
+    // The drag strip is window chrome only and must not intercept controls.
+    window_drag_strip->setAttribute(Qt::WA_TransparentForMouseEvents);
+    window_drag_strip->setFixedHeight(WINDOW_DRAG_REGION_HEIGHT);
+    window_drag_strip->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    window_drag_strip->setGeometry(0, 0, main_widget->width(), WINDOW_DRAG_REGION_HEIGHT);
+    m_window_drag_strip = window_drag_strip;
     main_layout->addWidget(m_tabs_container, 1);
 
     m_devtools_banner = new DevToolsBanner(main_widget);
@@ -320,10 +368,22 @@ BrowserWindow::BrowserWindow(Vector<URL::URL> const& initial_urls, IsPopupWindow
     main_layout->addWidget(m_devtools_banner);
 
     setCentralWidget(main_widget);
+    window_drag_strip->setGeometry(0, 0, main_widget->width(), 18);
+    window_drag_strip->raise();
     setContextMenuPolicy(Qt::PreventContextMenu);
 
     if (browser_options.devtools_port.has_value())
         on_devtools_enabled();
+
+    // Applying a global palette sends PaletteChange events to every widget. Do
+    // this only after the window chrome and its menus have been fully created,
+    // because BrowserWindow::changeEvent() refreshes those controls.
+    auto const& appearance = Application::settings().appearance();
+    Thoth::apply_browser_ui_appearance(qstring_from_ak_string(appearance.browser_ui_font.view()), qstring_from_ak_string(appearance.browser_color_palette.view()), qstring_from_ak_string(appearance.browser_icon_weight.view()), qstring_from_ak_string(appearance.color_scheme.view()));
+    setWindowIcon(Thoth::brand_logo_icon(ChromeStyle::is_dark(palette())));
+    if (auto* sidebar = thoth_sidebar())
+        sidebar->refresh_appearance();
+    Thoth::localize_application_ui();
 }
 
 BrowserWindow::~BrowserWindow()
@@ -336,6 +396,44 @@ void BrowserWindow::initialize_application_actions()
     auto& application = Application::the();
 
     // Add all actions to the window itself. This allows shortcuts to activate when the system menu bar is not visible.
+    if (thoth_sidebar()) {
+        auto* location = new QAction("Edit Location", this);
+        location->setShortcuts({ QKeySequence("Ctrl+L"), QKeySequence("Alt+D") });
+        connect(location, &QAction::triggered, this, [this] { if (m_current_tab) m_current_tab->focus_location_editor(); });
+        addAction(location);
+
+        auto* toggle_sidebar = new QAction("Toggle Sidebar", this);
+        toggle_sidebar->setObjectName("ThothToggleSidebarAction");
+        auto sidebar_shortcut = QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_L);
+        toggle_sidebar->setShortcut(sidebar_shortcut);
+        toggle_sidebar->setShortcutContext(Qt::WindowShortcut);
+        toggle_sidebar->setToolTip(QString("Toggle Sidebar (%1)").arg(sidebar_shortcut.toString(QKeySequence::NativeText)));
+        connect(toggle_sidebar, &QAction::triggered, this, [this] { thoth_sidebar()->toggle_collapsed(); });
+        addAction(toggle_sidebar);
+        for (int direction : { -1, 1 }) {
+            auto* action = new QAction(direction < 0 ? "Previous Workspace" : "Next Workspace", this);
+            action->setShortcut(QKeySequence(direction < 0 ? "Ctrl+Alt+Left" : "Ctrl+Alt+Right"));
+            connect(action, &QAction::triggered, this, [this, direction] { thoth_sidebar()->cycle_workspace(direction); });
+            addAction(action);
+        }
+        for (int n = 0; n < 9; ++n) {
+            auto* action = new QAction(QString("Workspace %1").arg(n + 1), this);
+            action->setShortcut(QKeySequence(QString("Ctrl+Alt+%1").arg(n + 1)));
+            connect(action, &QAction::triggered, this, [this, n] { thoth_sidebar()->select_workspace(n); });
+            addAction(action);
+        }
+    }
+
+    auto* split_action = new QAction("Toggle Split View", this);
+    split_action->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+S")));
+    connect(split_action, &QAction::triggered, this, [this] {
+        if (!thoth_sidebar() && m_tabs_container->count() < 2)
+            create_new_tab(Web::HTML::ActivateTab::No, TabLocation::end());
+        m_tabs_container->toggle_split_view();
+    });
+    addAction(split_action);
+    split_action->setObjectName("ThothSplitViewAction");
+
     addAction(application.new_tab_action());
     addAction(application.new_window_action());
     addAction(application.new_private_window_action());
@@ -384,6 +482,18 @@ void BrowserWindow::initialize_application_menu()
     setMenuBar(Application::the().create_application_menu_bar(Application::ForBrowserWindow::Yes));
     menuBar()->setObjectName("LadybirdMenuBar");
 
+    menuBar()->addMenu("Thoth")->addAction(findChild<QAction*>("ThothSplitViewAction"));
+    auto* toggle_sidebar = findChild<QAction*>("ThothToggleSidebarAction");
+    if (toggle_sidebar) {
+        for (auto* menu : menuBar()->findChildren<QMenu*>()) {
+            auto title = menu->title();
+            title.remove('&');
+            if (title == "View") {
+                menu->addAction(toggle_sidebar);
+                break;
+            }
+        }
+    }
     create_menu_bar_window_controls();
     update_menu_bar_visibility();
 }
@@ -393,9 +503,15 @@ void BrowserWindow::initialize_hamburger_menu()
     auto& application = Application::the();
 
     m_hamburger_menu = new QMenu(this);
-    QObject::connect(m_hamburger_menu, &QMenu::aboutToShow, this, &BrowserWindow::update_hamburger_zoom_label);
+    QObject::connect(m_hamburger_menu, &QMenu::aboutToShow, this, [this] {
+        update_hamburger_zoom_label();
+        update_browser_menu_visibility(*m_hamburger_menu);
+    });
 
     m_hamburger_menu->addAction(application.new_tab_action());
+    m_hamburger_menu->addAction(findChild<QAction*>("ThothSplitViewAction"));
+    if (auto* toggle_sidebar = findChild<QAction*>("ThothToggleSidebarAction"))
+        m_hamburger_menu->addAction(toggle_sidebar);
     m_hamburger_menu->addAction(application.new_window_action());
     m_hamburger_menu->addAction(application.new_private_window_action());
     m_hamburger_menu->addAction(application.reopen_recently_closed_tab_action());
@@ -413,12 +529,16 @@ void BrowserWindow::initialize_hamburger_menu()
     m_hamburger_menu->addSeparator();
 
     m_hamburger_menu->addAction(application.open_settings_action());
-    m_hamburger_menu->addMenu(application.inspect_menu());
-    m_hamburger_menu->addMenu(application.debug_menu());
+    if (auto* inspect_menu = application.inspect_menu(); inspect_menu && inspect_menu->menuAction()->isVisible() && !inspect_menu->isEmpty())
+        m_hamburger_menu->addMenu(inspect_menu);
+    if (auto* debug_menu = application.debug_menu(); debug_menu && debug_menu->menuAction()->isVisible() && !debug_menu->isEmpty())
+        m_hamburger_menu->addMenu(debug_menu);
     m_hamburger_menu->addSeparator();
 
     m_hamburger_menu->addMenu(application.help_menu());
     m_hamburger_menu->addAction(application.quit_action());
+    if (auto* sidebar = thoth_sidebar())
+        sidebar->set_browser_menu(*m_hamburger_menu);
 }
 
 QAction* BrowserWindow::create_hamburger_zoom_actions()
@@ -633,6 +753,7 @@ void BrowserWindow::initialize_tab(Tab* tab)
     };
 
     initialize_tab_buttons(tab);
+    Thoth::localize_widget_tree(*this);
 }
 
 void BrowserWindow::uninitialize_tab(Tab* tab)
@@ -703,8 +824,10 @@ void BrowserWindow::move_tab_to_window(int index, BrowserWindow& target_window, 
     target_window.adopt_tab(*tab, target_index);
     sync_session_tab_order();
 
-    if (m_tabs_container->count() == 0)
-        close();
+    if (m_tabs_container->count() == 0) {
+        if (thoth_sidebar()) thoth_sidebar()->ensure_nonempty();
+        else close();
+    }
 }
 
 void BrowserWindow::detach_tab_to_new_window(int index, QPoint global_position)
@@ -737,7 +860,8 @@ void BrowserWindow::set_current_tab(Tab* tab)
     if (tab == m_current_tab)
         return;
 
-    if (m_current_tab)
+    // A split pane remains visible when focus moves to its neighbor.
+    if (m_current_tab && !m_current_tab->isVisible())
         m_current_tab->view().set_system_visibility_state(Web::HTML::VisibilityState::Hidden);
 
     m_current_tab = tab;
@@ -790,8 +914,10 @@ bool BrowserWindow::definitely_close_tab(int index)
     Application::the().update_reopen_recently_closed_actions();
     tab->deleteLater();
 
-    if (m_tabs_container->count() == 0)
-        close();
+    if (m_tabs_container->count() == 0) {
+        if (thoth_sidebar()) thoth_sidebar()->ensure_nonempty();
+        else close();
+    }
 
     return true;
 }
@@ -841,6 +967,7 @@ void BrowserWindow::request_to_close_tab(int index)
 
 void BrowserWindow::request_to_close_current_tab()
 {
+    if (thoth_sidebar()) { thoth_sidebar()->close_current(); return; }
     request_to_close_tab(m_tabs_container->current_index());
 }
 
@@ -937,8 +1064,8 @@ void BrowserWindow::display_metadata_changed(Optional<u64> display_id, qreal ref
 void BrowserWindow::update_window_title(QString const& title)
 {
     char const* format = is_private() == WebView::IsPrivate::Yes
-        ? "%1 - Ladybird (Private Browsing)"
-        : "%1 - Ladybird";
+        ? "%1 - Thoth Browser alpha2.0 (Private Browsing)"
+        : "%1 - Thoth Browser alpha2.0";
     setWindowTitle(QString(format).arg(title));
 }
 
@@ -1040,6 +1167,7 @@ void BrowserWindow::update_menu_bar_window_control_icons()
     m_menu_bar_minimize_window_button->setIcon(create_chrome_icon(ChromeIcon::WindowMinimize, palette()));
     m_menu_bar_maximize_window_button->setIcon(create_chrome_icon(is_maximized ? ChromeIcon::WindowRestore : ChromeIcon::WindowMaximize, palette()));
     m_menu_bar_maximize_window_button->setToolTip(is_maximized ? "Restore" : "Maximize");
+    Thoth::localize_widget_tree(*m_menu_bar_maximize_window_button);
     m_menu_bar_close_window_button->setIcon(create_chrome_icon(ChromeIcon::WindowClose, palette()));
 }
 
@@ -1158,6 +1286,7 @@ QString BrowserWindow::tool_tip_for_page_mute_state(Tab& tab) const
 
 void BrowserWindow::open_next_tab()
 {
+    if (thoth_sidebar()) { thoth_sidebar()->cycle(1); return; }
     if (m_tabs_container->count() <= 1)
         return;
 
@@ -1169,6 +1298,7 @@ void BrowserWindow::open_next_tab()
 
 void BrowserWindow::open_previous_tab()
 {
+    if (thoth_sidebar()) { thoth_sidebar()->cycle(-1); return; }
     if (m_tabs_container->count() <= 1)
         return;
 
@@ -1200,6 +1330,8 @@ void BrowserWindow::set_window_rect(Optional<Web::DevicePixels> x, Optional<Web:
 
 void BrowserWindow::enter_fullscreen()
 {
+    if (m_tabs_container->is_split_view())
+        m_tabs_container->clear_split_presentation();
     m_tabs_container->set_tab_bar_visible(false);
     current_tab()->bookmarks_bar().setVisible(false);
 
@@ -1213,6 +1345,7 @@ void BrowserWindow::exit_fullscreen()
         return;
 
     m_tabs_container->set_tab_bar_visible(true);
+    if (thoth_sidebar()) thoth_sidebar()->restore_active();
     current_tab()->bookmarks_bar().setVisible(Application::settings().appearance().show_bookmarks_bar);
 
     if (m_restore_to_maximized)
@@ -1356,9 +1489,6 @@ bool BrowserWindow::eventFilter(QObject* object, QEvent* event)
 
 bool BrowserWindow::filter_native_window_event(QWindow& window, QEvent& event)
 {
-    if (!uses_client_side_decorations())
-        return false;
-
     auto* window_handle = windowHandle();
     if (!window_handle)
         return false;
@@ -1375,12 +1505,16 @@ bool BrowserWindow::filter_native_window_event(QWindow& window, QEvent& event)
 
     switch (event.type()) {
     case QEvent::Enter:
-        update_resize_cursor(mapFromGlobal(QCursor::pos()));
+        if (uses_client_side_decorations())
+            update_resize_cursor(mapFromGlobal(QCursor::pos()));
         return false;
     case QEvent::MouseMove:
-        update_resize_cursor(mapFromGlobal(static_cast<QMouseEvent const&>(event).globalPosition().toPoint()));
+        if (uses_client_side_decorations())
+            update_resize_cursor(mapFromGlobal(static_cast<QMouseEvent const&>(event).globalPosition().toPoint()));
         return false;
     case QEvent::Leave: {
+        if (!uses_client_side_decorations())
+            return false;
         auto position = mapFromGlobal(QCursor::pos());
         if (rect().contains(position))
             update_resize_cursor(position);
@@ -1393,11 +1527,15 @@ bool BrowserWindow::filter_native_window_event(QWindow& window, QEvent& event)
         if (mouse_event.button() != Qt::LeftButton || isMaximized() || isFullScreen())
             return false;
 
-        auto edges = resize_edges_for_position(mapFromGlobal(mouse_event.globalPosition().toPoint()));
-        if (edges == Qt::Edges {})
-            return false;
-
-        return window_handle->startSystemResize(edges);
+        auto position = mapFromGlobal(mouse_event.globalPosition().toPoint());
+        if (uses_client_side_decorations()) {
+            auto edges = resize_edges_for_position(position);
+            if (edges != Qt::Edges {})
+                return window_handle->startSystemResize(edges);
+        } else if (position.y() <= WINDOW_DRAG_REGION_HEIGHT) {
+            return start_window_move();
+        }
+        return false;
     }
     default:
         return false;
@@ -1498,6 +1636,11 @@ void BrowserWindow::resizeEvent(QResizeEvent* event)
 {
     QWidget::resizeEvent(event);
 
+    if (m_window_drag_strip && m_window_drag_strip->parentWidget())
+        m_window_drag_strip->setGeometry(0, 0, m_window_drag_strip->parentWidget()->width(), WINDOW_DRAG_REGION_HEIGHT);
+    if (m_window_drag_strip)
+        m_window_drag_strip->raise();
+
     for_each_tab([&](auto& tab) {
         tab.view().set_window_size({ width(), height() });
     });
@@ -1506,6 +1649,7 @@ void BrowserWindow::resizeEvent(QResizeEvent* event)
 void BrowserWindow::changeEvent(QEvent* event)
 {
     if (event->type() == QEvent::PaletteChange) {
+        setWindowIcon(Thoth::brand_logo_icon(ChromeStyle::is_dark(palette())));
         update_chrome_style();
         update_menu_bar_window_control_icons();
         update_tab_button_icons();
@@ -1519,10 +1663,21 @@ void BrowserWindow::changeEvent(QEvent* event)
         bool is_fullscreen = windowState() & Qt::WindowFullScreen;
 
         if (is_fullscreen && !was_fullscreen) {
-            m_fullscreen_mode->entered_fullscreen();
-            if (m_fullscreen_mode->is_api_fullscreen())
+            if (m_window_drag_strip)
+                m_window_drag_strip->hide();
+            // The floating exit button belongs to the Web Fullscreen API.
+            // Native macOS app fullscreen has its own system controls; showing
+            // this button there leaves an inert overlay because no API
+            // fullscreen session is active to handle its click or auto-hide.
+            if (m_fullscreen_mode->is_api_fullscreen()) {
+                m_fullscreen_mode->entered_fullscreen();
                 view().set_is_fullscreen(Web::ViewportIsFullscreen::Yes);
+            } else {
+                m_exit_button->hide();
+            }
         } else if (!is_fullscreen && was_fullscreen) {
+            if (m_window_drag_strip)
+                m_window_drag_strip->show();
             view().set_is_fullscreen(Web::ViewportIsFullscreen::No);
         }
     }
@@ -1531,11 +1686,27 @@ void BrowserWindow::changeEvent(QEvent* event)
 
 void BrowserWindow::appearance_changed()
 {
+    auto const& appearance = Application::settings().appearance();
+    Thoth::apply_browser_ui_appearance(qstring_from_ak_string(appearance.browser_ui_font.view()), qstring_from_ak_string(appearance.browser_color_palette.view()), qstring_from_ak_string(appearance.browser_icon_weight.view()), qstring_from_ak_string(appearance.color_scheme.view()));
+    setWindowIcon(Thoth::brand_logo_icon(ChromeStyle::is_dark(palette())));
+    if (auto* sidebar = thoth_sidebar())
+        sidebar->refresh_appearance();
+    update_chrome_style();
+    update_tab_button_icons();
+    m_tabs_container->refresh_chrome_appearance();
+    m_tabs_container->update_window_button_icons();
     update_menu_bar_visibility();
 
     for_each_tab([&, show_bookmarks_bar = Application::settings().appearance().show_bookmarks_bar](Tab& tab) {
         tab.bookmarks_bar().setVisible(show_bookmarks_bar);
     });
+}
+
+void BrowserWindow::interface_language_changed()
+{
+    Thoth::localize_application_ui();
+    if (auto* sidebar = thoth_sidebar())
+        sidebar->refresh_language();
 }
 
 void BrowserWindow::config_variable_changed(WebView::ConfigVariableID variable)
@@ -1608,6 +1779,7 @@ void BrowserWindow::closeEvent(QCloseEvent* event)
         }
     }
 
+    if (thoth_sidebar()) thoth_sidebar()->window_closing();
     clear_resize_cursor();
 
     auto active_tab_index = static_cast<i64>(max(m_tabs_container->current_index(), 0));

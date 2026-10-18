@@ -96,7 +96,7 @@ def run_test(webdriver_binary, process_name):
                     )
                     assert status == 200 and payload == {"value": None}, body
                 crash_helper(webdriver.pid, process_name)
-            directory = Path(temporary) / "data/Ladybird/CrashReports"
+            directory = Path(temporary) / "data/Thoth Browser/CrashReports"
             deadline = time.monotonic() + webdriver_helpers.EVENT_TIMEOUT_SECONDS
             while True:
                 reports = list(directory.glob(f"*-{process_name}-*.txt"))

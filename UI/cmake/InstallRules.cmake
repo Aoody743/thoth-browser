@@ -45,17 +45,17 @@ list(REMOVE_ITEM all_required_lagom_libraries ladybird)
 
 if (APPLE)
     # Fixup the app bundle and copy:
-    #   - Libraries from lib/ to Ladybird.app/Contents/lib
+    #   - Libraries from lib/ to Thoth Browser.app/Contents/lib
     # Remove the symlink we created at build time for the lib directory first
     install(CODE "
-    file(REMOVE \${CMAKE_INSTALL_PREFIX}/bundle/Ladybird.app/Contents/lib)
+    file(REMOVE \"\${CMAKE_INSTALL_PREFIX}/bundle/Thoth Browser.app/Contents/lib\")
     set(lib_dir \${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR})
     if (IS_ABSOLUTE ${CMAKE_INSTALL_LIBDIR})
       set(lib_dir ${CMAKE_INSTALL_LIBDIR})
     endif()
 
-    set(contents_dir \${CMAKE_INSTALL_PREFIX}/bundle/Ladybird.app/Contents)
-    file(COPY \${lib_dir} DESTINATION \${contents_dir})
+    set(contents_dir \"\${CMAKE_INSTALL_PREFIX}/bundle/Thoth Browser.app/Contents\")
+    file(COPY \"\${lib_dir}\" DESTINATION \"\${contents_dir}\")
   "
             COMPONENT ladybird_Runtime)
 endif()

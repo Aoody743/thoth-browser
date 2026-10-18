@@ -12,6 +12,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPainterPathStroker>
+#include <QGuiApplication>
 #include <QPalette>
 #include <QPen>
 #include <QPixmap>
@@ -45,15 +46,29 @@ QIcon icon_from_png(ReadonlyBytes favicon_png, int logical_size)
     return icon;
 }
 
+static qreal chrome_icon_weight_scale()
+{
+    auto* application = QGuiApplication::instance();
+    if (!application)
+        return 1.0;
+
+    auto weight = application->property("ThothIconWeight").toString();
+    if (weight == "fine")
+        return 0.82;
+    if (weight == "expressive")
+        return 1.18;
+    return 1.0;
+}
+
 static QPen chrome_icon_pen(QColor const& color, qreal width)
 {
-    return QPen(color, width, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    return QPen(color, width * chrome_icon_weight_scale(), Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
 }
 
 static void draw_stroked_icon_path(QPainter& painter, QPainterPath const& path, QColor const& color, qreal width)
 {
     QPainterPathStroker stroker;
-    stroker.setWidth(width);
+    stroker.setWidth(width * chrome_icon_weight_scale());
     stroker.setCapStyle(Qt::RoundCap);
     stroker.setJoinStyle(Qt::RoundJoin);
 
@@ -178,6 +193,27 @@ static void draw_globe_icon(QPainter& painter, QColor const& color)
     draw_stroked_icon_path(painter, path, color, 1.55);
 }
 
+static void draw_unlock_icon(QPainter& painter, QColor const& color)
+{
+    QPainterPath body;
+    body.addRoundedRect(QRectF(4.1, 9.4, 11.8, 7.6), 1.65, 1.65);
+    painter.setPen(chrome_icon_pen(color, 1.65));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawPath(body);
+
+    QPainterPath shackle;
+    shackle.moveTo(7.0, 9.2);
+    shackle.lineTo(7.0, 7.5);
+    shackle.cubicTo(7.0, 5.0, 8.8, 3.3, 11.2, 3.3);
+    shackle.cubicTo(13.5, 3.3, 15.0, 4.8, 15.0, 7.0);
+    painter.drawPath(shackle);
+
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(color);
+    painter.drawEllipse(QRectF(9.25, 12.0, 1.5, 1.5));
+    painter.drawRoundedRect(QRectF(9.8, 13.1, 0.5, 2.2), 0.25, 0.25);
+}
+
 static void draw_volume_icon(QPainter& painter, QColor const& color, bool muted)
 {
     QPainterPath speaker;
@@ -272,6 +308,9 @@ static QPixmap create_chrome_icon_pixmap(ChromeIcon icon, QColor color, qreal de
     case ChromeIcon::Globe:
         draw_globe_icon(painter, color);
         break;
+    case ChromeIcon::Unlock:
+        draw_unlock_icon(painter, color);
+        break;
     case ChromeIcon::Folder: {
         painter.setPen(chrome_icon_pen(color, 1.6));
         QPainterPath path;
@@ -363,9 +402,13 @@ QIcon create_chrome_icon(ChromeIcon icon, QPalette const& palette)
 {
     auto normal = ChromeStyle::chrome_button_text(palette);
     auto normal_alpha = 216;
+    auto warning = ChromeStyle::is_dark(palette) ? QColor(224, 142, 136) : QColor(144, 62, 56);
     if (icon == ChromeIcon::DownloadActive) {
         normal = ChromeStyle::chrome_accent(palette);
         normal_alpha = 244;
+    } else if (icon == ChromeIcon::Unlock) {
+        normal = warning;
+        normal_alpha = 236;
     } else if (icon == ChromeIcon::Close || icon == ChromeIcon::TabClose)
         normal_alpha = 172;
     else if (icon == ChromeIcon::Star)
@@ -376,6 +419,10 @@ QIcon create_chrome_icon(ChromeIcon icon, QPalette const& palette)
 
     auto active = ChromeStyle::chrome_button_text(palette);
     active.setAlpha(icon == ChromeIcon::Close || icon == ChromeIcon::TabClose ? 220 : 236);
+    if (icon == ChromeIcon::Unlock) {
+        active = warning;
+        active.setAlpha(248);
+    }
 
     auto disabled = ChromeStyle::chrome_muted_text(palette);
     disabled.setAlpha(icon == ChromeIcon::Close || icon == ChromeIcon::TabClose ? 78 : 82);

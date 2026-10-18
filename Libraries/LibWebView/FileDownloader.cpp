@@ -1335,8 +1335,8 @@ void FileDownloader::restore_persisted_downloads()
     HashTable<ByteString> directories;
     HashTable<ByteString> temporary_paths_in_use;
 
-    directories.set(Core::StandardPaths::downloads_directory());
-
+    // A fresh profile has no downloads to recover. Opening the protected Downloads
+    // directory before any window exists can block first launch on macOS.
     for (auto& record : m_download_store->resumable_downloads()) {
         LexicalPath temporary_destination { record.temporary_destination.to_byte_string() };
         directories.set(temporary_destination.dirname());
@@ -1350,6 +1350,8 @@ void FileDownloader::restore_persisted_downloads()
         (void)FileSystem::remove(temporary_destination.string(), FileSystem::RecursionMode::Disallowed);
     }
 
+    if (!directories.is_empty())
+        directories.set(Core::StandardPaths::downloads_directory());
     remove_orphaned_temporary_files(directories, temporary_paths_in_use);
 }
 

@@ -47,6 +47,8 @@
 #include <QPainterPath>
 #include <QPixmap>
 #include <QScreen>
+#include <QSplitter>
+#include <QSplitterHandle>
 #include <QStyle>
 #include <QStyleOptionButton>
 #include <QStylePainter>
@@ -60,6 +62,126 @@
 #include <QWindow>
 
 namespace Ladybird {
+
+class ThothSidebarResizeHandle final : public QSplitterHandle {
+public:
+    ThothSidebarResizeHandle(Qt::Orientation orientation, QSplitter* splitter)
+        : QSplitterHandle(orientation, splitter)
+    {
+        setAttribute(Qt::WA_Hover);
+        setAttribute(Qt::WA_StyledBackground);
+        setAttribute(Qt::WA_OpaquePaintEvent);
+        // Hovering the divider should not look like an active resize gesture.
+        // QSplitterHandle still receives moves after a press when mouse
+        // tracking is disabled.
+        setMouseTracking(false);
+        setCursor(Qt::ArrowCursor);
+        setAccessibleName("Resize Sidebar");
+        setToolTip("Drag to resize the sidebar · Drag to the edge to collapse");
+        // Keep the native splitter style from adding its own indicator below
+        // the custom grip. On macOS that can appear as two adjacent colored
+        // bars when the handle is hovered.
+        setStyleSheet("QSplitterHandle { background: transparent; border: none; }");
+    }
+
+protected:
+    void mousePressEvent(QMouseEvent* event) override
+    {
+        if (event->button() != Qt::LeftButton) {
+            event->ignore();
+            return;
+        }
+        m_dragging = true;
+        setCursor(Qt::SplitHCursor);
+        update();
+        QSplitterHandle::mousePressEvent(event);
+    }
+
+    void mouseMoveEvent(QMouseEvent* event) override
+    {
+        // A hover move must never change the splitter position. Forward drag
+        // moves only while the initiating left button is still held down.
+        if (!m_dragging || !event->buttons().testFlag(Qt::LeftButton)) {
+            event->ignore();
+            return;
+        }
+        QSplitterHandle::mouseMoveEvent(event);
+    }
+
+    void mouseReleaseEvent(QMouseEvent* event) override
+    {
+        QSplitterHandle::mouseReleaseEvent(event);
+        if (event->button() == Qt::LeftButton) {
+            m_dragging = false;
+            setCursor(Qt::ArrowCursor);
+            update();
+        }
+    }
+
+    void paintEvent(QPaintEvent*) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+
+        // Paint the whole splitter strip in the sidebar color. This also
+        // erases any stale pixels left behind when the native sidebar moves.
+        auto sidebar_color = splitter()->property("ThothSidebarBackground").toString();
+        auto background = QColor(sidebar_color);
+        if (!background.isValid())
+            background = palette().color(QPalette::Window);
+        painter.setCompositionMode(QPainter::CompositionMode_Source);
+        painter.fillRect(rect(), background);
+        painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+
+        if (!m_hovered && !m_dragging)
+            return;
+
+        auto dark = ChromeStyle::is_dark(palette());
+        auto color = dark ? QColor("#d8cdea") : QColor("#665c78");
+        color.setAlpha(165);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(color);
+
+        auto center_x = width() / 2.0;
+        auto center_y = height() / 2.0;
+        constexpr qreal grip_width = 4.0;
+        constexpr qreal grip_height = 40.0;
+        painter.drawRoundedRect(QRectF(center_x - grip_width / 2.0, center_y - grip_height / 2.0, grip_width, grip_height), 2.0, 2.0);
+    }
+
+    bool event(QEvent* event) override
+    {
+        auto should_hover = event->type() == QEvent::Enter || event->type() == QEvent::HoverEnter || event->type() == QEvent::MouseMove;
+        auto should_unhover = event->type() == QEvent::Leave || event->type() == QEvent::HoverLeave;
+        auto hover_changed = false;
+        if (should_hover && !m_hovered) {
+            m_hovered = true;
+            hover_changed = true;
+        } else if (should_unhover && m_hovered) {
+            m_hovered = false;
+            hover_changed = true;
+        }
+        auto handled = QSplitterHandle::event(event);
+        if (hover_changed)
+            update();
+        return handled;
+    }
+
+private:
+    bool m_hovered { false };
+    bool m_dragging { false };
+};
+
+class ThothSidebarSplitter final : public QSplitter {
+public:
+    using QSplitter::QSplitter;
+
+protected:
+    QSplitterHandle* createHandle() override
+    {
+        return new ThothSidebarResizeHandle(orientation(), this);
+    }
+};
 
 static constexpr auto LADYBIRD_TAB_MIME_TYPE = "application/x-ladybird-tab";
 static constexpr int HORIZONTAL_TAB_STRIP_HEIGHT = 42;
@@ -1523,6 +1645,7 @@ TabWidget::TabWidget(QWidget* parent)
     m_toolbar_container->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     m_toolbar_container->installEventFilter(this);
     m_stacked_widget = new QStackedWidget(this);
+    m_split_view = new Thoth::SplitView(m_stacked_widget, this);
     m_page_column = new QWidget(this);
     m_page_column_layout = new QVBoxLayout(m_page_column);
     m_page_column_layout->setSpacing(0);
@@ -1601,9 +1724,11 @@ TabWidget::TabWidget(QWidget* parent)
     update_chrome_style();
 
     connect(m_tab_bar, &QTabBar::currentChanged, this, [this](int index) {
-        if (index >= 0 && index < m_stacked_widget->count())
+        if (!m_showing_pages && index >= 0 && index < m_stacked_widget->count() && tab(index) != m_split_view->secondary())
             m_stacked_widget->setCurrentIndex(index);
 
+        if (m_sidebar && !m_showing_pages && tab(index) && m_toolbar_container->indexOf(tab(index)->toolbar_container()) >= 0)
+            m_sidebar->active_changed(tab(index));
         emit current_tab_changed(index);
         m_toolbar_container->setCurrentIndex(index);
         update_vertical_tabs_overlay_geometry();
@@ -1614,6 +1739,8 @@ TabWidget::TabWidget(QWidget* parent)
     connect(m_tab_bar, &QTabBar::tabCloseRequested, this, &TabWidget::tab_close_requested);
 
     connect(m_tab_bar, &QTabBar::tabMoved, this, [this](int from, int to) {
+        m_split_view->clear_secondary();
+        m_pages.move(from, to);
         ScopeGuard guard { [&]() { m_stacked_widget->blockSignals(false); } };
         m_stacked_widget->blockSignals(true);
 
@@ -1621,7 +1748,7 @@ TabWidget::TabWidget(QWidget* parent)
         m_stacked_widget->removeWidget(widget);
         m_stacked_widget->insertWidget(to, widget);
 
-        auto* toolbar = as<Tab>(widget)->toolbar_container();
+        auto* toolbar = tab(to)->toolbar_container();
         if (auto toolbar_index = m_toolbar_container->indexOf(toolbar); toolbar_index != -1) {
             m_toolbar_container->removeWidget(toolbar);
             m_toolbar_container->insertWidget(to, toolbar);
@@ -1661,21 +1788,30 @@ void TabWidget::insert_tab(int index, Tab* widget, QString const& label)
     // A page inserted behind the current one stays at Qt's default geometry until it's selected, and a load can start
     // into it long before that. Size its view like the current page's view first — as Chrome does for a new background
     // tab (TabStripModel::AddWebContents) — so the page's first layout sees the real viewport.
-    if (auto* current = as_if<Tab>(m_stacked_widget->currentWidget()); current && current != widget)
+    if (auto* current = tab(m_stacked_widget->currentIndex()); current && current != widget)
         size_page_like(*widget, *current);
     widget->view().installEventFilter(this);
 
-    m_stacked_widget->insertWidget(index, widget);
+    auto* home = new QWidget;
+    auto* layout = new QVBoxLayout(home);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+    layout->addWidget(widget);
+    m_pages.insert(index, widget);
+    if (m_sidebar) m_sidebar->page_added(widget);
+    m_stacked_widget->insertWidget(index, home);
     m_tab_bar->insertTab(index, label);
     widget->set_toolbar_container_in_tab_layout(false);
     m_toolbar_container->insertWidget(index, widget->toolbar_container());
 
     widget->set_vertical_tabs_enabled(m_vertical_tabs_enabled);
+    if (m_sidebar) { widget->configure_sidebar_toolbar(); m_sidebar->attach_navigation(widget); }
     widget->set_vertical_tabs_position(m_vertical_tabs_position);
 
     update_toolbar_placement();
     update_tab_layout();
     update_tab_button_visibility();
+    if (m_sidebar && current_index() == index) m_sidebar->active_changed(widget);
 }
 
 void TabWidget::remove_tab(int index)
@@ -1685,16 +1821,22 @@ void TabWidget::remove_tab(int index)
 
 Tab* TabWidget::take_tab(int index)
 {
-    auto* widget = m_stacked_widget->widget(index);
+    auto* widget = tab(index);
     if (!widget)
         return nullptr;
 
-    m_stacked_widget->removeWidget(widget);
-    as<Tab>(widget)->view().removeEventFilter(this);
-    auto* toolbar = as<Tab>(widget)->toolbar_container();
+    if (m_sidebar) m_sidebar->page_removed(widget);
+    m_split_view->clear_secondary();
+    auto* home = m_stacked_widget->widget(index);
+    m_stacked_widget->removeWidget(home);
+    widget->setParent(this);
+    m_pages.removeAt(index);
+    delete home;
+    widget->view().removeEventFilter(this);
+    auto* toolbar = widget->toolbar_container();
     if (m_toolbar_container->indexOf(toolbar) != -1)
         m_toolbar_container->removeWidget(toolbar);
-    as<Tab>(widget)->set_toolbar_container_in_tab_layout(true);
+    widget->set_toolbar_container_in_tab_layout(true);
 
     m_tab_bar->removeTab(index);
 
@@ -1703,18 +1845,34 @@ Tab* TabWidget::take_tab(int index)
 
     update_tab_layout();
     update_tab_button_visibility();
-    return as<Tab>(widget);
+    if (m_sidebar) m_sidebar->page_removal_finished();
+    return widget;
 }
 
 void TabWidget::set_current_tab(Tab* widget)
 {
-    if (auto index = m_stacked_widget->indexOf(widget); index >= 0)
+    if (auto index = index_of(widget); index >= 0)
         set_current_index(index);
 }
 
 int TabWidget::index_of(Tab* widget) const
 {
-    return m_stacked_widget->indexOf(widget);
+    return static_cast<int>(m_pages.indexOf(widget));
+}
+
+void TabWidget::toggle_split_view()
+{
+    if (m_sidebar) { m_sidebar->choose_split(); return; }
+    if (is_split_view()) {
+        m_split_view->clear_secondary();
+        m_stacked_widget->setCurrentIndex(current_index());
+        return;
+    }
+    if (count() < 2)
+        return;
+    auto secondary_index = (current_index() + 1) % count();
+    auto* secondary = tab(secondary_index);
+    m_split_view->open(secondary, m_stacked_widget->widget(secondary_index));
 }
 
 void TabWidget::set_new_tab_action(QAction* action)
@@ -1751,6 +1909,7 @@ void TabWidget::set_window_controls_visible(bool visible)
 
 void TabWidget::set_vertical_tabs_enabled(bool enabled)
 {
+    if (m_sidebar) return;
     if (m_vertical_tabs_enabled == enabled)
         return;
 
@@ -1765,6 +1924,7 @@ void TabWidget::set_vertical_tabs_enabled(bool enabled)
 
 void TabWidget::set_vertical_tabs_expanded(bool expanded)
 {
+    if (m_sidebar) return;
     if (m_vertical_tabs_expanded == expanded)
         return;
 
@@ -1775,6 +1935,7 @@ void TabWidget::set_vertical_tabs_expanded(bool expanded)
 
 void TabWidget::set_vertical_tabs_expand_on_hover(bool expand_on_hover)
 {
+    if (m_sidebar) return;
     if (m_vertical_tabs_expand_on_hover == expand_on_hover)
         return;
 
@@ -1786,6 +1947,7 @@ void TabWidget::set_vertical_tabs_expand_on_hover(bool expand_on_hover)
 
 void TabWidget::set_vertical_tabs_position(WebView::VerticalTabsPosition position)
 {
+    if (m_sidebar) return;
     if (m_vertical_tabs_position == position)
         return;
 
@@ -1827,11 +1989,20 @@ void TabWidget::dropEvent(QDropEvent* event)
 
 bool TabWidget::eventFilter(QObject* watched, QEvent* event)
 {
+    if (event->type() == QEvent::FocusIn || event->type() == QEvent::MouseButtonPress) {
+        for (int index = 0; index < m_pages.size(); ++index) {
+            if (watched == &tab(index)->view() && index != current_index()) {
+                set_current_index(index);
+                break;
+            }
+        }
+    }
+
     if (watched == window() && event->type() == QEvent::Leave)
         defer_update_vertical_tabs_hover_expanded();
 
     if (event->type() == QEvent::Resize) {
-        if (auto* current = as_if<Tab>(m_stacked_widget->currentWidget()); current && watched == &current->view())
+        if (auto* current = tab(m_stacked_widget->currentIndex()); current && watched == &current->view())
             size_hidden_pages_like_the_current_one();
     }
 
@@ -1952,11 +2123,13 @@ void TabWidget::resizeEvent(QResizeEvent* event)
 // out before the current page's child layout has run. So at that point the current view still has its placeholder size.
 void TabWidget::size_hidden_pages_like_the_current_one()
 {
-    auto* current = as_if<Tab>(m_stacked_widget->currentWidget());
+    if (is_split_view())
+        return;
+    auto* current = tab(m_stacked_widget->currentIndex());
     if (!current)
         return;
     for (int i = 0; i < m_stacked_widget->count(); ++i) {
-        if (auto* page = as_if<Tab>(m_stacked_widget->widget(i)); page && page != current)
+        if (auto* page = tab(i); page && page != current)
             size_page_like(*page, *current);
     }
 }
@@ -2056,6 +2229,11 @@ bool TabWidget::should_show_window_controls_in_tab_toolbar() const
 
 void TabWidget::update_toolbar_placement()
 {
+    if (m_sidebar) {
+        m_toolbar_container->setCurrentIndex(current_index());
+        update_tab_toolbar_window_controls_visibility();
+        return;
+    }
     auto use_full_width_toolbar = current_tab_layout() != TabLayout::Horizontal;
 
     for (int index = 0; index < m_stacked_widget->count(); ++index) {
@@ -2070,13 +2248,92 @@ void TabWidget::update_toolbar_placement()
 
 void TabWidget::update_tab_toolbar_window_controls_visibility()
 {
+#if defined(Q_OS_WIN)
+    auto show_controls = m_sidebar ? m_window_controls_visible : should_show_window_controls_in_tab_toolbar();
+#else
+    if (m_sidebar)
+        return;
     auto show_controls = should_show_window_controls_in_tab_toolbar();
+#endif
     for (int index = 0; index < m_stacked_widget->count(); ++index)
         tab(index)->set_toolbar_window_controls_visible(show_controls);
 }
 
+void TabWidget::enable_thoth_sidebar()
+{
+    if (m_sidebar) return;
+    m_sidebar = new Thoth::Sidebar(*this, *m_toolbar_container);
+    m_thoth_layout = new ThothSidebarSplitter(Qt::Horizontal, this);
+    // Keep the browser chrome's leading pane anchored at the physical left
+    // edge even if the application or its parent inherits an RTL direction.
+    m_thoth_layout->setLayoutDirection(Qt::LeftToRight);
+    m_sidebar->setLayoutDirection(Qt::LeftToRight);
+    m_split_view->setLayoutDirection(Qt::LeftToRight);
+    m_thoth_layout->setFrameShape(QFrame::NoFrame);
+    m_split_view->setFrameShape(QFrame::NoFrame);
+    // Give the divider a forgiving hit target while keeping its resting
+    // appearance to a fine, centered grip.
+    m_thoth_layout->setHandleWidth(10);
+    m_split_view->setContentsMargins(0, 0, 0, 0);
+    m_split_view->setStyleSheet("QSplitter { background: transparent; border: none; } QSplitter::handle { background: transparent; border: none; }");
+    m_thoth_layout->addWidget(m_sidebar);
+    m_thoth_layout->addWidget(m_split_view);
+    m_sidebar->setMaximumWidth(400);
+    m_sidebar->setMinimumWidth(190);
+    m_sidebar->set_outer_splitter(m_thoth_layout);
+    rebuild_layout();
+}
+
+void TabWidget::clear_split_presentation()
+{
+    m_split_view->clear_secondary();
+    if (current_index() >= 0) m_stacked_widget->setCurrentIndex(current_index());
+}
+
+void TabWidget::mark_active_page(Tab* active)
+{
+    for (auto* page : m_pages) {
+        page->setObjectName("ThothPage");
+        page->setAttribute(Qt::WA_StyledBackground);
+        page->setProperty("thothActivePane", page == active);
+        page->layout()->setContentsMargins(0, 0, 0, 0);
+        page->setStyleSheet("#ThothPage { background: transparent; border: none; }");
+    }
+}
+
+void TabWidget::show_pages(Tab* left, Tab* right, Tab* active, double ratio)
+{
+    if (!left) return;
+    m_showing_pages = true;
+    if (m_split_view->secondary() != right || m_stacked_widget->currentIndex() != index_of(left)) {
+        m_split_view->clear_secondary();
+        m_stacked_widget->setCurrentIndex(index_of(left));
+        if (right) m_split_view->open(right, m_stacked_widget->widget(index_of(right)));
+        auto total = std::max(1, m_split_view->width());
+        m_split_view->setSizes({ static_cast<int>(total * ratio), static_cast<int>(total * (1.0 - ratio)) });
+    }
+    if (!active) active = left;
+    m_tab_bar->setCurrentIndex(index_of(active));
+    m_toolbar_container->setCurrentWidget(active->toolbar_container());
+    mark_active_page(active);
+    m_showing_pages = false;
+}
+
 void TabWidget::rebuild_layout()
 {
+    if (m_sidebar) {
+        clear_layout(*m_main_layout);
+#if defined(Q_OS_WIN)
+        m_main_layout->addWidget(m_toolbar_container);
+#endif
+        m_main_layout->addWidget(m_thoth_layout, 1);
+        m_tab_bar_row->hide(); m_tab_bar->hide(); m_page_column->hide();
+        m_vertical_tabs_content->hide(); m_vertical_tab_bar_column->hide();
+        m_vertical_tabs_resize_handle->hide(); m_new_tab_button->hide();
+        m_window_controls->hide(); m_toolbar_container->show();
+        m_split_view->show(); m_thoth_layout->show();
+        return;
+    }
     clear_layout(*m_main_layout);
     clear_layout(*m_tab_bar_row_layout);
     clear_layout(*m_page_column_layout);
@@ -2093,11 +2350,11 @@ void TabWidget::rebuild_layout()
         m_page_column->hide();
 
         if (vertical_tabs_are_on_right()) {
-            m_vertical_tabs_content_layout->addWidget(m_stacked_widget, 1);
+            m_vertical_tabs_content_layout->addWidget(m_split_view, 1);
             m_vertical_tabs_content_layout->addWidget(m_vertical_tabs_reserved_space);
         } else {
             m_vertical_tabs_content_layout->addWidget(m_vertical_tabs_reserved_space);
-            m_vertical_tabs_content_layout->addWidget(m_stacked_widget, 1);
+            m_vertical_tabs_content_layout->addWidget(m_split_view, 1);
         }
         m_main_layout->addWidget(m_vertical_tabs_content, 1);
         m_vertical_tabs_content->show();
@@ -2167,7 +2424,7 @@ void TabWidget::rebuild_layout_for_vertical_tabs()
 void TabWidget::rebuild_page_column()
 {
     m_page_column_layout->addWidget(m_toolbar_container);
-    m_page_column_layout->addWidget(m_stacked_widget, 1);
+    m_page_column_layout->addWidget(m_split_view, 1);
 }
 
 int TabWidget::current_vertical_tabs_width() const
@@ -2300,6 +2557,7 @@ void TabWidget::update_vertical_tabs_button_layout()
 
 void TabWidget::update_tab_layout()
 {
+    if (m_sidebar) return;
     if (m_tab_bar->tab_layout() != TabLayout::Horizontal) {
         auto reserved_width = vertical_tabs_layout_width();
         auto side_bar_width = current_vertical_tabs_width();
@@ -2354,6 +2612,7 @@ void TabWidget::update_tab_button_visibility()
 
 void TabWidget::update_tab_chrome_visibility()
 {
+    if (m_sidebar) { m_sidebar->set_chrome_visible(m_tab_bar_visible); return; }
     auto tab_layout = m_tab_bar->tab_layout();
     auto is_horizontal = tab_layout == TabLayout::Horizontal;
     auto show_top_row = m_tab_bar_visible && is_horizontal;
@@ -2376,6 +2635,15 @@ void TabWidget::recreate_icons()
     update_window_button_icons();
 }
 
+void TabWidget::refresh_chrome_appearance()
+{
+    recreate_icons();
+    update_chrome_style();
+    update_window_button_icons();
+    for (auto* page : m_pages)
+        page->refresh_chrome_appearance();
+}
+
 void TabWidget::update_chrome_style()
 {
     if (m_is_updating_chrome_style)
@@ -2392,6 +2660,7 @@ void TabWidget::update_chrome_style()
 
 void TabWidget::update_vertical_tabs_overlay_geometry()
 {
+    if (m_sidebar) return;
     if (!m_tab_bar_visible || m_tab_bar->tab_layout() == TabLayout::Horizontal) {
         m_vertical_tab_bar_column->hide();
         return;

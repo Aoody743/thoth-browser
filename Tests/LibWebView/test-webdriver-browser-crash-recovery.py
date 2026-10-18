@@ -68,7 +68,7 @@ def run_test(webdriver_binary):
             ("XDG_CACHE_HOME", "cache"),
         ):
             environment[variable] = str(Path(temporary) / directory)
-        reports_directory = Path(temporary) / "data/Ladybird/CrashReports"
+        reports_directory = Path(temporary) / "data/Thoth Browser/CrashReports"
 
         report = write_browser_report(reports_directory)
         process, port, session = launch(webdriver_binary, environment)

@@ -47,6 +47,8 @@ public:
     bool url_is_hidden() const { return m_url_is_hidden; }
     void set_url_is_hidden(bool);
     void show_autocomplete();
+    void set_sidebar_mode();
+    void navigate_from_user_input(QString const&);
 
     Function<void(String, Optional<URL::URL>, WebView::OmniboxDestinationKind)> on_navigation;
 
@@ -95,6 +97,7 @@ private:
 
     Optional<URL::URL> m_url;
     bool m_url_is_hidden { false };
+    bool m_sidebar_mode { false };
     bool m_has_user_edited_hidden_url { false };
     bool m_is_updating_chrome_style { false };
     bool m_has_pending_chrome_style_update { false };

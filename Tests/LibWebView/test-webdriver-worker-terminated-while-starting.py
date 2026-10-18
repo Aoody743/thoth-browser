@@ -99,7 +99,7 @@ def run_test(webdriver_binary):
                 time.sleep(0.05)
 
             time.sleep(CRASH_REPORT_GRACE_SECONDS)
-            reports = list((Path(temporary) / "data/Ladybird/CrashReports").glob("*-WebWorker-*.txt"))
+            reports = list((Path(temporary) / "data/Thoth Browser/CrashReports").glob("*-WebWorker-*.txt"))
             assert not reports, reports[0].read_text()
 
             webdriver_helpers.request(port, "DELETE", f"/session/{session}")

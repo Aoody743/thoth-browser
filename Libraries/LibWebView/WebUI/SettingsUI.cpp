@@ -15,6 +15,7 @@
 #include <LibWebView/CrashReport.h>
 #include <LibWebView/CrashReportStore.h>
 #include <LibWebView/SearchEngine.h>
+#include <LibWebView/UserAgent.h>
 #include <LibWebView/WebUI/SettingsUI.h>
 
 namespace WebView {
@@ -68,6 +69,10 @@ void SettingsUI::register_interfaces()
         return;
     }
 
+    register_interface("setInterfaceLanguage"sv, [this](auto const& data) {
+        set_interface_language(data);
+    });
+
     register_interface("showCrashReports"sv, [this](auto const&) {
         if (!CrashReport::is_supported()) {
             async_send_message("crashReportsStatus"sv, "Crash reporting is not available on this platform yet."_string);
@@ -94,6 +99,9 @@ void SettingsUI::register_interfaces()
     });
     register_interface("setConfigVariable"sv, [this](auto const& data) {
         set_config_variable(data);
+    });
+    register_interface("setUserAgentPreset"sv, [this](auto const& data) {
+        set_user_agent_preset(data);
     });
 
     register_interface("setSearchEngineSettings"sv, [this](auto const& data) {
@@ -229,6 +237,16 @@ void SettingsUI::load_current_settings()
     settings.as_object().set("contentBlockerLists"sv, move(lists));
     settings.as_object().set("contentBlockerListUpdateInProgress"sv, Application::the().content_blocker_list_update_in_progress());
 
+    JsonArray user_agent_presets;
+    user_agent_presets.ensure_capacity(user_agents.size());
+    for (auto const& user_agent : user_agents) {
+        JsonObject preset;
+        preset.set("name"sv, user_agent.key);
+        preset.set("value"sv, user_agent.value);
+        user_agent_presets.must_append(move(preset));
+    }
+    settings.as_object().set("userAgentPresets"sv, move(user_agent_presets));
+
     async_send_message("loadSettings"sv, settings);
 }
 
@@ -241,8 +259,10 @@ void SettingsUI::complete_first_run(JsonValue const& data)
     auto search_engine_settings = object.get_object("searchEngine"sv);
     auto content_blocker_enabled = object.get_bool("contentBlockerEnabled"sv);
     auto lists = object.get_array("contentBlockerLists"sv);
+    auto interface_language = object.get_string("interfaceLanguage"sv);
     if (!vertical_tabs_enabled.has_value() || !search_engine_settings.has_value()
-        || !content_blocker_enabled.has_value() || !lists.has_value())
+        || !content_blocker_enabled.has_value() || !lists.has_value() || !interface_language.has_value()
+        || !interface_language->is_one_of("en"sv, "zh-CN"sv))
         return;
 
     auto engine = search_engine_settings->get("engine"sv);
@@ -251,6 +271,7 @@ void SettingsUI::complete_first_run(JsonValue const& data)
         return;
 
     auto& settings = Application::settings();
+    settings.set_interface_language(*interface_language);
     auto tab_settings = settings.tab_settings();
     if (Application::the().supports_vertical_tabs())
         tab_settings.vertical_tabs_enabled = *vertical_tabs_enabled;
@@ -278,6 +299,18 @@ void SettingsUI::set_new_tab_page_url(JsonValue const& new_tab_page_url)
         return;
 
     Application::settings().set_new_tab_page_url(parsed_new_tab_page_url.release_value());
+}
+
+void SettingsUI::set_interface_language(JsonValue const& data)
+{
+    if (!data.is_object())
+        return;
+    auto language = data.as_object().get_string("interfaceLanguage"sv);
+    if (!language.has_value() || !language->is_one_of("en"sv, "zh-CN"sv))
+        return;
+
+    Application::settings().set_interface_language(*language);
+    async_send_message("interfaceLanguageChanged"sv, *language);
 }
 
 void SettingsUI::set_languages(JsonValue const& languages)
@@ -343,6 +376,25 @@ void SettingsUI::set_config_variable(JsonValue const& variable)
 
     Application::settings().set_config_variable(*name, *value);
 
+    load_current_settings();
+}
+
+void SettingsUI::set_user_agent_preset(JsonValue const& value)
+{
+    if (value.is_null() || (value.is_string() && value.as_string().is_empty())) {
+        Application::settings().set_user_agent_preset({});
+        load_current_settings();
+        return;
+    }
+
+    if (!value.is_string())
+        return;
+
+    auto normalized = normalize_user_agent_name(value.as_string());
+    if (!normalized.has_value())
+        return;
+
+    Application::settings().set_user_agent_preset(*normalized);
     load_current_settings();
 }
 
