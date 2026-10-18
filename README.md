@@ -4,7 +4,7 @@
 
 <h1 align="center">Thoth Browser</h1>
 
-<p align="center"><em>A quieter, more considered place to browse.</em></p>
+<p align="center"><em>Exploring Human &amp; Browser Interaction in the AI Era.</em></p>
 
 <p align="center"><a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a></p>
 

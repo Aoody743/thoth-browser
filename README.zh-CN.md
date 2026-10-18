@@ -4,7 +4,7 @@
 
 <h1 align="center">Thoth Browser</h1>
 
-<p align="center"><em>让浏览回归安静、从容。</em></p>
+<p align="center"><em>探索 AI 时代的人与浏览器交互。</em></p>
 
 <p align="center"><a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a></p>
 
