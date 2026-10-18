@@ -33,6 +33,12 @@ if (APPLE OR LINUX)
 endif()
 
 if (APPLE)
+    ladybird_test(TestMacProxySettings.cpp LibWebView LIBS LibHTTP LibURL "-framework CFNetwork")
+    target_sources(TestMacProxySettings PRIVATE "${LADYBIRD_SOURCE_DIR}/UI/Qt/MacProxySettings.cpp")
+    target_include_directories(TestMacProxySettings PRIVATE "${LADYBIRD_SOURCE_DIR}")
+endif()
+
+if (APPLE)
     list(APPEND TEST_SOURCES TestProcessReaper.cpp)
 endif()
 

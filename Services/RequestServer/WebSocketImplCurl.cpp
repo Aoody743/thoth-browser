@@ -11,7 +11,7 @@
 
 namespace RequestServer {
 
-static constexpr long s_connect_timeout_seconds = 90L;
+static constexpr long s_connect_timeout_seconds = 15L;
 
 NonnullRefPtr<WebSocketImplCurl> WebSocketImplCurl::create(CURLM* multi_handle)
 {

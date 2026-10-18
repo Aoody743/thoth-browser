@@ -31,11 +31,11 @@
 #include <UI/Qt/Popover.h>
 #include <UI/Qt/StringUtils.h>
 #include <UI/Qt/Thoth/Localization.h>
+#include <UI/Qt/Thoth/Sidebar.h>
 #include <UI/Qt/WindowControlButton.h>
 
 #include <LibWebView/TabPerformanceMonitor.h>
 #include <QColorDialog>
-#include <QConicalGradient>
 #include <QFileDialog>
 #include <QFont>
 #include <QFontMetrics>
@@ -47,8 +47,7 @@
 #include <QMimeData>
 #include <QMimeDatabase>
 #include <QPainter>
-#include <QPainterPath>
-#include <QPainterPathStroker>
+#include <QLinearGradient>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QResizeEvent>
@@ -90,24 +89,35 @@ protected:
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing);
 
-        QPainterPath path;
-        path.addRoundedRect(QRectF(rect()).adjusted(2.5, 2.5, -2.5, -2.5), 11, 11);
-        QPainterPathStroker stroker;
-        stroker.setWidth(2.0);
+        auto accent = palette().color(QPalette::Highlight);
+        if (accent.lightness() < 105)
+            accent = accent.lighter(155);
+        else if (accent.lightness() > 220)
+            accent = accent.darker(155);
 
-        auto highlight = palette().color(QPalette::Highlight);
-        highlight.setAlpha(150);
-        auto quiet = highlight;
-        quiet.setAlpha(18);
-        QConicalGradient gradient(rect().center(), -m_frame * 10.0);
-        gradient.setColorAt(0.0, highlight);
-        gradient.setColorAt(0.08, highlight);
-        gradient.setColorAt(0.22, quiet);
-        gradient.setColorAt(0.62, QColor(0, 0, 0, 0));
-        gradient.setColorAt(0.92, quiet);
-        gradient.setColorAt(1.0, highlight);
+        constexpr qreal track_height = 4.0;
+        auto track = QRectF(0, 0, width(), track_height);
+        auto track_color = accent;
+        track_color.setAlpha(78);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(track_color);
+        painter.drawRoundedRect(track, 2, 2);
 
-        painter.fillPath(stroker.createStroke(path), gradient);
+        auto segment_width = qMin<qreal>(120, qMax<qreal>(52, width() * 0.18));
+        auto travel = qMax<qreal>(0, width() - segment_width);
+        auto phase = m_frame <= 35 ? m_frame / 35.0 : (70 - m_frame) / 35.0;
+        auto segment = QRectF(travel * phase, 0, segment_width, track_height);
+        auto leading_color = accent;
+        leading_color.setAlpha(0);
+        auto visible_color = accent;
+        visible_color.setAlpha(255);
+        QLinearGradient gradient(segment.topLeft(), segment.topRight());
+        gradient.setColorAt(0.0, leading_color);
+        gradient.setColorAt(0.18, visible_color);
+        gradient.setColorAt(0.82, visible_color);
+        gradient.setColorAt(1.0, leading_color);
+        painter.setBrush(gradient);
+        painter.drawRoundedRect(segment, 2, 2);
     }
 
 private:
@@ -637,7 +647,7 @@ Tab::Tab(BrowserWindow* window, Optional<WebView::CanonicalTraversable&> travers
         update_hover_label();
     });
     QObject::connect(m_loading_animation_timer, &QTimer::timeout, this, [this] {
-        m_loading_animation_frame = (m_loading_animation_frame + 1) % 36;
+        m_loading_animation_frame = (m_loading_animation_frame + 1) % 70;
         m_loading_overlay->set_frame(m_loading_animation_frame);
     });
 
@@ -1513,6 +1523,10 @@ void Tab::set_loading(bool is_loading)
 
     m_loading_overlay->setVisible(m_is_loading);
     m_loading_overlay->raise();
+    if (m_window) {
+        if (auto* sidebar = m_window->thoth_sidebar())
+            sidebar->page_loading_changed(this);
+    }
     update_tab_icon();
 }
 

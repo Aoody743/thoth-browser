@@ -4,9 +4,12 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <AK/ScopeGuard.h>
 #include <LibCore/EventLoop.h>
+#include <LibCore/Socket.h>
 #include <LibCore/StandardPaths.h>
 #include <LibCore/System.h>
+#include <LibCore/TCPServer.h>
 #include <LibCore/Timer.h>
 #include <LibHTTP/Cache/DiskCache.h>
 #include <LibHTTP/NetworkIsolationKey.h>
@@ -16,7 +19,9 @@
 #include <RequestServer/CURL.h>
 #include <RequestServer/ConnectionFromClient.h>
 #include <RequestServer/ControlConnectionFromClient.h>
+#include <RequestServer/Resolver.h>
 #include <RequestServer/ResourceSubstitutionMap.h>
+#include <chrono>
 
 namespace RequestServer {
 
@@ -42,6 +47,85 @@ HTTP::NetworkIsolationKey key(StringView top_level_site, Optional<StringView> fr
         .is_cross_site_main_frame_navigation = navigation == Navigation::CrossSiteTopLevel,
     };
 }
+
+class RespondingProxy {
+public:
+    RespondingProxy()
+    {
+        m_server = MUST(Core::TCPServer::try_create());
+        MUST(m_server->listen(IPv4Address { 127, 0, 0, 1 }, 0));
+
+        m_server->on_ready_to_accept = [this] {
+            auto socket = MUST(m_server->accept());
+            MUST(socket->set_blocking(false));
+            auto connection_index = m_connections.size();
+            m_connections.append(Connection { move(socket) });
+            m_connections.last().socket->on_ready_to_read = [this, connection_index] {
+                on_ready_to_read(connection_index);
+            };
+        };
+    }
+
+    u16 port() const { return *m_server->local_port(); }
+    size_t request_count() const { return m_request_count; }
+
+private:
+    struct Connection {
+        explicit Connection(NonnullOwnPtr<Core::TCPSocket> socket)
+            : socket(move(socket))
+        {
+        }
+
+        NonnullOwnPtr<Core::TCPSocket> socket;
+        ByteBuffer request;
+    };
+
+    void on_ready_to_read(size_t connection_index)
+    {
+        auto& connection = m_connections[connection_index];
+        auto buffer = MUST(ByteBuffer::create_uninitialized(4096));
+        auto bytes = MUST(connection.socket->read_some(buffer));
+        if (bytes.is_empty())
+            return;
+        MUST(connection.request.try_append(bytes));
+        if (!StringView { connection.request }.contains("\r\n\r\n"sv))
+            return;
+
+        connection.socket->on_ready_to_read = nullptr;
+        MUST(connection.socket->set_blocking(true));
+        MUST(connection.socket->write_until_depleted(
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: text/plain\r\n"
+            "Content-Length: 2\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            "ok"sv.bytes()));
+        ++m_request_count;
+        connection.socket->close();
+    }
+
+    RefPtr<Core::TCPServer> m_server;
+    Vector<Connection> m_connections;
+    size_t m_request_count { 0 };
+};
+
+class StallingProxy {
+public:
+    StallingProxy()
+    {
+        m_server = MUST(Core::TCPServer::try_create());
+        MUST(m_server->listen(IPv4Address { 127, 0, 0, 1 }, 0));
+        m_server->on_ready_to_accept = [this] {
+            m_connections.append(MUST(m_server->accept()));
+        };
+    }
+
+    u16 port() const { return *m_server->local_port(); }
+
+private:
+    RefPtr<Core::TCPServer> m_server;
+    Vector<NonnullOwnPtr<Core::TCPSocket>> m_connections;
+};
 
 struct TestServer {
     TestServer()
@@ -187,4 +271,65 @@ TEST_CASE(bound_client_requests_only_for_its_sites)
     // ...but not under a top-level site the client is not bound to.
     server.start_request(5, "http://127.0.0.1:2/"sv, key("https://b.example"sv, "http://127.0.0.1"sv, Navigation::Subframe));
     EXPECT(server.wait_for_request_finished(5) == Requests::NetworkError::Unknown);
+}
+
+TEST_CASE(request_retries_a_failed_proxy_through_the_next_configured_proxy)
+{
+    TestServer server;
+    RespondingProxy fallback_proxy;
+
+    auto primary = HTTP::Proxy::parse("http://127.0.0.1:2"sv);
+    auto fallback = HTTP::Proxy::parse(ByteString::formatted("http://127.0.0.1:{}", fallback_proxy.port()));
+    VERIFY(primary.has_value());
+    VERIFY(fallback.has_value());
+
+    Vector<HTTP::Proxy> http_fallbacks;
+    http_fallbacks.append(*fallback);
+    RequestServer::set_proxy_configuration(HTTP::ProxyConfiguration {
+        *primary,
+        {},
+        {},
+        false,
+        move(http_fallbacks),
+        {},
+    });
+    ScopeGuard reset_proxy_configuration = [] { RequestServer::set_proxy_configuration({}); };
+
+    server.bind_to_site("http://fallback.test"sv, "http://fallback.test"sv);
+    server.start_request(1, "http://fallback.test/resource"sv, key("http://fallback.test"sv, "http://fallback.test"sv));
+    EXPECT(!server.wait_for_request_finished(1).has_value());
+    EXPECT_EQ(fallback_proxy.request_count(), 1u);
+}
+
+TEST_CASE(request_moves_on_quickly_when_a_proxy_fallback_is_available)
+{
+    TestServer server;
+    StallingProxy primary_proxy;
+    RespondingProxy fallback_proxy;
+
+    auto primary = HTTP::Proxy::parse(ByteString::formatted("http://127.0.0.1:{}", primary_proxy.port()));
+    auto fallback = HTTP::Proxy::parse(ByteString::formatted("http://127.0.0.1:{}", fallback_proxy.port()));
+    VERIFY(primary.has_value());
+    VERIFY(fallback.has_value());
+
+    Vector<HTTP::Proxy> https_fallbacks;
+    https_fallbacks.append(*fallback);
+    RequestServer::set_proxy_configuration(HTTP::ProxyConfiguration {
+        {},
+        *primary,
+        {},
+        false,
+        {},
+        move(https_fallbacks),
+    });
+    ScopeGuard reset_proxy_configuration = [] { RequestServer::set_proxy_configuration({}); };
+
+    server.bind_to_site("https://fallback.test"sv, "https://fallback.test"sv);
+    auto started_at = std::chrono::steady_clock::now();
+    server.start_request(1, "https://fallback.test/resource"sv, key("https://fallback.test"sv, "https://fallback.test"sv));
+    EXPECT(server.wait_for_request_finished(1).has_value());
+    auto elapsed = std::chrono::steady_clock::now() - started_at;
+
+    EXPECT(elapsed < std::chrono::seconds(5));
+    EXPECT_EQ(fallback_proxy.request_count(), 1u);
 }

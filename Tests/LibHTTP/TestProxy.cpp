@@ -83,7 +83,7 @@ TEST_CASE(no_proxy_matching)
 {
     auto configuration = configuration_from({
         { "all_proxy"sv, "http://proxy"sv },
-        { "no_proxy"sv, "localhost, .internal.example corp.example.,10.0.0.0/8 ::1 192.168.1.1"sv },
+        { "no_proxy"sv, "localhost, .internal.example *.wildcard.example corp.example.,10.0.0.0/8 ::1 192.168.1.1"sv },
     });
 
     auto is_proxied = [&](StringView string) { return configuration.proxy_for(url(string)).has_value(); };
@@ -95,6 +95,9 @@ TEST_CASE(no_proxy_matching)
     EXPECT(!is_proxied("http://a.internal.example/"sv));
     EXPECT(!is_proxied("https://b.corp.example/"sv));
     EXPECT(is_proxied("https://xcorp.example/"sv));
+    EXPECT(!is_proxied("https://wildcard.example/"sv));
+    EXPECT(!is_proxied("https://a.wildcard.example/"sv));
+    EXPECT(is_proxied("https://notwildcard.example/"sv));
     EXPECT(!is_proxied("http://10.1.2.3/"sv));
     EXPECT(is_proxied("http://11.1.2.3/"sv));
     EXPECT(!is_proxied("http://[::1]/"sv));
@@ -104,4 +107,34 @@ TEST_CASE(no_proxy_matching)
 
     configuration = configuration_from({ { "all_proxy"sv, "http://proxy"sv }, { "NO_PROXY"sv, "*"sv } });
     EXPECT(!is_proxied("https://example.com/"sv));
+}
+
+TEST_CASE(proxy_configuration_fallback)
+{
+    auto environment = configuration_from({
+        { "https_proxy"sv, "http://environment-proxy:9000"sv },
+        { "no_proxy"sv, "example.org"sv },
+    });
+    auto http_socks_fallback = HTTP::Proxy::parse("socks5h://system-backup:1081"sv);
+    auto https_socks_fallback = HTTP::Proxy::parse("socks5h://system-backup:1081"sv);
+    auto system = HTTP::ProxyConfiguration {
+        HTTP::Proxy::parse("http://system-proxy:8080"sv),
+        HTTP::Proxy::parse("http://system-secure-proxy:8443"sv),
+        { ByteString { "*.internal.example"sv } },
+        true,
+        { http_socks_fallback.release_value() },
+        { https_socks_fallback.release_value() },
+    };
+    auto configuration = environment.with_fallback(system);
+
+    auto http_proxies = configuration.proxies_for(url("http://example.com/"sv));
+    EXPECT_EQ(http_proxies.size(), 2u);
+    EXPECT_EQ(http_proxies[0].host, "system-proxy"sv);
+    EXPECT_EQ(http_proxies[1].host, "system-backup"sv);
+    EXPECT_EQ(configuration.proxy_for(url("https://example.com/"sv))->host, "environment-proxy"sv);
+    EXPECT_EQ(configuration.proxies_for(url("https://example.com/"sv)).size(), 1u);
+    EXPECT(!configuration.proxy_for(url("http://example.org/"sv)).has_value());
+    EXPECT(!configuration.proxy_for(url("http://a.internal.example/"sv)).has_value());
+    EXPECT(!configuration.proxy_for(url("http://printer/"sv)).has_value());
+    EXPECT(configuration.proxy_for(url("http://printer.example/"sv)).has_value());
 }

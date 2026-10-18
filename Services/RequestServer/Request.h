@@ -230,6 +230,8 @@ private:
     void reset_for_retry();
     void update_alternative_services();
     bool should_retry_without_alternative_service(int curl_result_code) const;
+    bool should_retry_with_proxy_fallback(int curl_result_code) const;
+    long connect_timeout_seconds() const;
     u16 connect_port() const;
     void handle_retrieve_cookie_state();
     void handle_connect_state();
@@ -334,6 +336,7 @@ private:
     NonnullRefPtr<Resolver> m_resolver;
     RefPtr<DNS::LookupResult const> m_dns_result;
     Optional<HTTP::Proxy> m_proxy;
+    size_t m_proxy_index { 0 };
     CacheLevel m_connect_cache_level { CacheLevel::ResolveOnly };
 
     URL::URL m_url;

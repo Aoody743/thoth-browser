@@ -9,7 +9,7 @@
 <p align="center"><a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a></p>
 
 <p align="center">
-  <a href="https://github.com/Aoody743/thoth-browser/releases"><img src="https://img.shields.io/badge/preview-alpha%202.0-c49b59" alt="预览版 alpha 2.0"></a>
+  <a href="https://github.com/Aoody743/thoth-browser/releases"><img src="https://img.shields.io/badge/版本-0.9.1-c49b59" alt="版本 0.9.1"></a>
   <img src="https://img.shields.io/badge/macOS-14.4%2B-252c35" alt="macOS 14.4 或更高版本">
   <img src="https://img.shields.io/badge/Apple%20Silicon-arm64-252c35" alt="Apple Silicon">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-BSD--2--Clause-252c35" alt="BSD 2-Clause 许可证"></a>
@@ -38,8 +38,8 @@ Thoth 是一款面向 macOS 的实验性浏览器，基于
 
 ## 下载
 
-此预览版面向 **Apple Silicon（arm64）**，要求 **macOS 14.4 或更高版本**。经过 Developer ID 签名和 Apple 公证的 DMG 可在
-[alpha 2.0 发行页](https://github.com/Aoody743/thoth-browser/releases/tag/v2.0.0-alpha.2) 下载。
+0.9.1 版本面向 **Apple Silicon（arm64）**，要求 **macOS 14.4 或更高版本**。经过 Developer ID 签名和 Apple 公证的 DMG 可在
+[0.9.1 发行页](https://github.com/Aoody743/thoth-browser/releases/tag/v0.9.1) 下载。
 
 安装时，打开下载的 `.dmg`，然后将 **Thoth Browser** 拖入 **Applications（应用程序）** 文件夹。
 
@@ -67,7 +67,7 @@ python3 Meta/thoth.py run --no-build
 python3 Meta/package_thoth.py
 ```
 
-打包后的应用位于 `Build/alpha2.0/Thoth Browser.app`。本地开发包使用临时签名；GitHub 发行版则使用 Developer ID 签名并经过 Apple 公证。
+打包后的应用位于 `Build/0.9.1/Thoth Browser.app`。本地开发包使用临时签名；GitHub 发行版则使用 Developer ID 签名并经过 Apple 公证。
 
 ## 项目状态
 

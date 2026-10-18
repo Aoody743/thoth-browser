@@ -63,7 +63,7 @@ def sign_command(identity, path, entitlements=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build-root", type=Path, default=Path.home() / ".cache/thoth-browser")
-    parser.add_argument("--output", type=Path, default=SOURCE / "Build/alpha2.0/Thoth Browser.app")
+    parser.add_argument("--output", type=Path, default=SOURCE / "Build/0.9.1/Thoth Browser.app")
     parser.add_argument(
         "--signing-identity",
         help="Developer ID Application identity; omit for a local ad-hoc signed package",

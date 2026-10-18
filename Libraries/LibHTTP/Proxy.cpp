@@ -181,17 +181,71 @@ ProxyConfiguration ProxyConfiguration::from_environment(EnvironmentLookup const&
 
 Optional<Proxy const&> ProxyConfiguration::proxy_for(URL::URL const& url) const
 {
-    Optional<Proxy> const* proxy = nullptr;
-    if (url.scheme().is_one_of("http"sv, "ws"sv))
-        proxy = &m_http_proxy;
-    else if (url.scheme().is_one_of("https"sv, "wss"sv))
-        proxy = &m_https_proxy;
+    if (!url.host().has_value() || is_excluded(url.serialized_host()))
+        return {};
 
-    if (!proxy || !proxy->has_value() || !url.host().has_value())
+    Optional<Proxy> const* proxy = nullptr;
+    Vector<Proxy> const* fallbacks = nullptr;
+    if (url.scheme().is_one_of("http"sv, "ws"sv)) {
+        proxy = &m_http_proxy;
+        fallbacks = &m_http_proxy_fallbacks;
+    } else if (url.scheme().is_one_of("https"sv, "wss"sv)) {
+        proxy = &m_https_proxy;
+        fallbacks = &m_https_proxy_fallbacks;
+    }
+
+    if (!proxy || (!proxy->has_value() && fallbacks->is_empty()))
         return {};
-    if (is_excluded(url.serialized_host()))
+    if (proxy->has_value())
+        return **proxy;
+    return fallbacks->first();
+}
+
+Vector<Proxy> ProxyConfiguration::proxies_for(URL::URL const& url) const
+{
+    if (!url.host().has_value() || is_excluded(url.serialized_host()))
         return {};
-    return **proxy;
+
+    Optional<Proxy> const* proxy = nullptr;
+    Vector<Proxy> const* fallbacks = nullptr;
+    if (url.scheme().is_one_of("http"sv, "ws"sv)) {
+        proxy = &m_http_proxy;
+        fallbacks = &m_http_proxy_fallbacks;
+    } else if (url.scheme().is_one_of("https"sv, "wss"sv)) {
+        proxy = &m_https_proxy;
+        fallbacks = &m_https_proxy_fallbacks;
+    }
+
+    if (!proxy || (!proxy->has_value() && fallbacks->is_empty()))
+        return {};
+
+    Vector<Proxy> proxies;
+    if (proxy->has_value())
+        proxies.append(**proxy);
+    for (auto const& fallback : *fallbacks)
+        proxies.append(fallback);
+    return proxies;
+}
+
+ProxyConfiguration ProxyConfiguration::with_fallback(ProxyConfiguration const& fallback) const
+{
+    Vector<ByteString> no_proxy = fallback.m_no_proxy;
+    for (auto const& entry : m_no_proxy)
+        no_proxy.append(entry);
+
+    auto http_proxy = m_http_proxy.has_value() || !m_http_proxy_fallbacks.is_empty() ? m_http_proxy : fallback.m_http_proxy;
+    auto https_proxy = m_https_proxy.has_value() || !m_https_proxy_fallbacks.is_empty() ? m_https_proxy : fallback.m_https_proxy;
+    auto http_proxy_fallbacks = m_http_proxy.has_value() || !m_http_proxy_fallbacks.is_empty() ? m_http_proxy_fallbacks : fallback.m_http_proxy_fallbacks;
+    auto https_proxy_fallbacks = m_https_proxy.has_value() || !m_https_proxy_fallbacks.is_empty() ? m_https_proxy_fallbacks : fallback.m_https_proxy_fallbacks;
+
+    return {
+        move(http_proxy),
+        move(https_proxy),
+        move(no_proxy),
+        m_exclude_simple_hostnames || fallback.m_exclude_simple_hostnames,
+        move(http_proxy_fallbacks),
+        move(https_proxy_fallbacks),
+    };
 }
 
 static bool address_matches(IPv4Address address, StringView entry)
@@ -252,6 +306,9 @@ bool ProxyConfiguration::is_excluded(StringView host) const
     if (host.ends_with('.'))
         host = host.substring_view(0, host.length() - 1);
 
+    if (m_exclude_simple_hostnames && !host.contains('.') && !host.contains(':'))
+        return true;
+
     auto ipv4_address = IPv4Address::from_string(host);
     auto ipv6_address = ipv4_address.has_value() ? Optional<IPv6Address> {} : IPv6Address::from_string(host);
 
@@ -271,7 +328,9 @@ bool ProxyConfiguration::is_excluded(StringView host) const
         }
 
         StringView name = entry;
-        if (name.starts_with('.'))
+        if (name.starts_with("*."sv))
+            name = name.substring_view(2);
+        else if (name.starts_with('.'))
             name = name.substring_view(1);
         if (name.ends_with('.'))
             name = name.substring_view(0, name.length() - 1);
@@ -320,6 +379,9 @@ ErrorOr<void> encode(Encoder& encoder, HTTP::ProxyConfiguration const& configura
     TRY(encoder.encode(configuration.http_proxy()));
     TRY(encoder.encode(configuration.https_proxy()));
     TRY(encoder.encode(configuration.no_proxy()));
+    TRY(encoder.encode(configuration.exclude_simple_hostnames()));
+    TRY(encoder.encode(configuration.http_proxy_fallbacks()));
+    TRY(encoder.encode(configuration.https_proxy_fallbacks()));
     return {};
 }
 
@@ -329,7 +391,10 @@ ErrorOr<HTTP::ProxyConfiguration> decode(Decoder& decoder)
     auto http_proxy = TRY(decoder.decode<Optional<HTTP::Proxy>>());
     auto https_proxy = TRY(decoder.decode<Optional<HTTP::Proxy>>());
     auto no_proxy = TRY(decoder.decode<Vector<ByteString>>());
-    return HTTP::ProxyConfiguration { move(http_proxy), move(https_proxy), move(no_proxy) };
+    auto exclude_simple_hostnames = TRY(decoder.decode<bool>());
+    auto http_proxy_fallbacks = TRY(decoder.decode<Vector<HTTP::Proxy>>());
+    auto https_proxy_fallbacks = TRY(decoder.decode<Vector<HTTP::Proxy>>());
+    return HTTP::ProxyConfiguration { move(http_proxy), move(https_proxy), move(no_proxy), exclude_simple_hostnames, move(http_proxy_fallbacks), move(https_proxy_fallbacks) };
 }
 
 }

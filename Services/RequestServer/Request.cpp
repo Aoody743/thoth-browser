@@ -32,7 +32,8 @@ namespace RequestServer {
 
 extern OwnPtr<ResourceSubstitutionMap> g_resource_substitution_map;
 
-static long s_connect_timeout_seconds = 90L;
+static long s_connect_timeout_seconds = 15L;
+static constexpr long s_proxy_fallback_connect_timeout_seconds = 3L;
 
 static constexpr size_t max_response_header_count = 1000;
 static AK::Duration s_wait_for_cache_timeout = AK::Duration::from_seconds(10);
@@ -771,6 +772,19 @@ void Request::handle_fetch_complete(int result_code)
     if (result_code == CURLE_OK)
         update_alternative_services();
 
+    if (should_retry_with_proxy_fallback(result_code)) {
+        auto proxy_count = proxy_configuration().proxies_for(m_url).size();
+        ++m_proxy_index;
+        dbgln("Retrying request through proxy fallback {} of {}", m_proxy_index + 1, proxy_count);
+        m_alternative_service.clear();
+        m_dns_result = nullptr;
+
+        MUST(free_curl_structs());
+        reset_for_retry();
+        transition_to_state(State::DNSLookup);
+        return;
+    }
+
     // https://www.rfc-editor.org/rfc/rfc7838#section-2.4
     // Furthermore, if the connection to the alternative service fails or is unresponsive, the client MAY fall back to
     // using the origin or another alternative service.
@@ -905,7 +919,7 @@ void Request::update_alternative_services()
 
 bool Request::should_retry_without_alternative_service(int curl_result_code) const
 {
-    if (!m_alternative_service.has_value() || curl_result_code == CURLE_OK)
+    if (m_proxy.has_value() || !m_alternative_service.has_value() || curl_result_code == CURLE_OK)
         return false;
     if (m_sent_response_headers_to_client || m_bytes_transferred_to_client > 0 || !m_response_headers->is_empty())
         return false;
@@ -918,6 +932,30 @@ bool Request::should_retry_without_alternative_service(int curl_result_code) con
     }
 
     return true;
+}
+
+bool Request::should_retry_with_proxy_fallback(int curl_result_code) const
+{
+    if (curl_result_code == CURLE_OK || !m_proxy.has_value())
+        return false;
+    if (m_sent_response_headers_to_client || m_bytes_transferred_to_client > 0 || !m_response_headers->is_empty())
+        return false;
+    if (!m_method.is_one_of("GET"sv, "HEAD"sv, "OPTIONS"sv))
+        return false;
+
+    auto proxies = proxy_configuration().proxies_for(m_url);
+    return m_proxy_index + 1 < proxies.size();
+}
+
+long Request::connect_timeout_seconds() const
+{
+    if (!m_proxy.has_value())
+        return s_connect_timeout_seconds;
+
+    auto proxies = proxy_configuration().proxies_for(m_url);
+    if (m_proxy_index + 1 < proxies.size())
+        return s_proxy_fallback_connect_timeout_seconds;
+    return s_connect_timeout_seconds;
 }
 
 bool Request::should_retry_after_fetching_aia_intermediate(int curl_result_code) const
@@ -1291,7 +1329,21 @@ void Request::handle_dns_lookup_state()
     }
 
     // Avoid leaking hostnames resolved by the proxy.
-    m_proxy = proxy_configuration().proxy_for(m_url).copy();
+    auto proxies = proxy_configuration().proxies_for(m_url);
+    if (proxies.is_empty()) {
+        if (m_proxy_index != 0) {
+            m_network_error = Requests::NetworkError::Unknown;
+            transition_to_state(State::Error);
+            return;
+        }
+        m_proxy.clear();
+    } else if (m_proxy_index < proxies.size()) {
+        m_proxy = proxies[m_proxy_index];
+    } else {
+        m_network_error = Requests::NetworkError::Unknown;
+        transition_to_state(State::Error);
+        return;
+    }
     if (m_proxy.has_value() && m_proxy->resolves_hostnames()) {
         m_dns_result = nullptr;
         continue_after_dns_lookup();
@@ -1400,7 +1452,7 @@ void Request::handle_connect_state()
     set_option(CURLOPT_PORT, m_url.port_or_default());
     set_option(CURLOPT_PROTOCOLS_STR, "http,https");
     set_option(CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
-    set_option(CURLOPT_CONNECTTIMEOUT, s_connect_timeout_seconds);
+    set_option(CURLOPT_CONNECTTIMEOUT, connect_timeout_seconds());
     set_option(CURLOPT_CONNECT_ONLY, 1L);
     set_option(CURLOPT_PROXY, m_proxy.has_value() ? m_proxy->to_curl_url().characters() : "");
 
@@ -1470,7 +1522,7 @@ void Request::handle_fetch_state()
     set_option(CURLOPT_PORT, m_url.port_or_default());
     set_option(CURLOPT_PROTOCOLS_STR, "http,https");
     set_option(CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
-    set_option(CURLOPT_CONNECTTIMEOUT, s_connect_timeout_seconds);
+    set_option(CURLOPT_CONNECTTIMEOUT, connect_timeout_seconds());
 
     // https://www.rfc-editor.org/rfc/rfc7838#section-2.4
     // If the connection to the alternative service does not negotiate the expected protocol (for example, ALPN fails to

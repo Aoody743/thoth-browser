@@ -1,4 +1,4 @@
-# Thoth Browser alpha2.0
+# Thoth Browser 0.9.1
 
 The Qt shell uses a left sidebar with the address editor and navigation controls,
 a Favourite icon grid, nested folders and pinned pages, and temporary pages.
@@ -104,7 +104,7 @@ The selected SDK must define `VM_MEMORY_APPLICATION_SPECIFIC_2`, which is absent
 from this machine's older Command Line Tools SDK.
 
 The macOS executable is `~/.cache/thoth-browser/Build/release/bin/Thoth Browser.app/Contents/MacOS/Thoth Browser`.
-The displayed version is `alpha2.0`; the numeric bundle build version is `2.0.0`.
+The displayed version and numeric bundle version are `0.9.1`.
 Profiles use `Thoth Browser/Profiles`, separate from Ladybird's profiles.
 The underlying engine user-agent remains unchanged for site compatibility.
 
@@ -144,10 +144,10 @@ python3 Meta/package_thoth.py
 python3 Meta/package_thoth.py --replace
 ```
 
-The self-contained result is `Build/alpha2.0/Thoth Browser.app`. Packaging copies
+The self-contained result is `Build/0.9.1/Thoth Browser.app`. Packaging copies
 Qt and engine dependencies, removes build-machine library search paths, signs the
 application and verifies its nested signatures and version output.
 
 Validation uses `TestProfile`, `TestFileDownloader`, `ThothSplitView` and
 `ThothSidebarModel`, plus native application checks on a separate QA profile.
-The package is intended for alpha2.0 validation and is separate from any upstream Ladybird build.
+The package is intended for 0.9.1 validation and is separate from any upstream Ladybird build.

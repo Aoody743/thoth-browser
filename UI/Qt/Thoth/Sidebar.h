@@ -38,6 +38,7 @@ public:
     void cycle_workspace(int);
     void select_workspace(int);
     void active_changed(Ladybird::Tab*);
+    void page_loading_changed(Ladybird::Tab*);
     void refresh();
     void choose_split();
     void close_current();
@@ -108,6 +109,7 @@ private:
     QPointer<QWidget> m_reveal_handle;
     QPointer<QWidget> m_new_tab_prompt;
     QTimer* m_hover_timer {};
+    QTimer* m_loading_animation_timer {};
     QVariantAnimation* m_collapse_animation {};
     QToolButton* m_space_header {};
     QToolButton* m_browser_menu_button {};
@@ -126,6 +128,7 @@ private:
     bool m_dragging_sidebar_item { false };
     bool m_chrome_visible { true };
     int m_hover_outside_ms { 0 };
+    int m_loading_animation_frame { 0 };
     bool m_private { false };
     bool m_mutating { false };
     bool m_ready { false };

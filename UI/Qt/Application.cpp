@@ -24,6 +24,7 @@
 #include <UI/Qt/WebContentView.h>
 
 #if defined(AK_OS_MACOS)
+#    include <UI/Qt/MacProxySettings.h>
 #    include <UI/Qt/MacWindow.h>
 #endif
 
@@ -523,9 +524,13 @@ void Application::show_process_manager()
     m_process_manager_window->activateWindow();
 }
 
-void Application::create_platform_options(WebView::BrowserOptions&, WebView::RequestServerOptions&, WebView::WebContentOptions&)
+void Application::create_platform_options(WebView::BrowserOptions&, WebView::RequestServerOptions& request_server_options, WebView::WebContentOptions&)
 {
     Settings::initialize(profile().paths().config);
+#if defined(AK_OS_MACOS)
+    auto system_proxy_settings = current_mac_proxy_settings();
+    request_server_options.proxy_configuration = request_server_options.proxy_configuration.with_fallback(system_proxy_settings.proxy_configuration);
+#endif
 }
 
 void Application::create_platform_actions()
@@ -562,7 +567,7 @@ Core::EventLoop& Application::create_platform_event_loop()
 #endif
         m_application = make<LadybirdQApplication>(arguments());
         QCoreApplication::setApplicationName("Thoth Browser");
-        QCoreApplication::setApplicationVersion("alpha2.0");
+    QCoreApplication::setApplicationVersion("0.9.1");
 #if defined(AK_OS_LINUX)
         QGuiApplication::setDesktopFileName(QStringLiteral("thoth.aoody"));
 #endif

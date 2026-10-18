@@ -12,8 +12,8 @@ import tempfile
 from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parent.parent
-DEFAULT_APP = SOURCE / "Build/alpha2.0/Thoth Browser.app"
-DEFAULT_OUTPUT = SOURCE / "Build/Thoth-Browser-alpha2.0-macos-arm64.dmg"
+DEFAULT_APP = SOURCE / "Build/0.9.1/Thoth Browser.app"
+DEFAULT_OUTPUT = SOURCE / "Build/Thoth-Browser-0.9.1-macos-arm64.dmg"
 
 
 def run(*command: str | Path) -> str:

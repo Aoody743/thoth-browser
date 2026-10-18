@@ -10,8 +10,8 @@ endif()
 
 function(create_ladybird_bundle target_name)
     set(THOTH_BUNDLE_IDENTIFIER "thoth.aoody" CACHE STRING "Thoth Browser bundle identifier")
-    set(THOTH_BUNDLE_VERSION "2.0.0" CACHE STRING "Thoth Browser bundle version")
-    set(THOTH_VERSION "2.0.0" CACHE STRING "Thoth Browser bundle version" FORCE)
+    set(THOTH_BUNDLE_VERSION "0.9.1" CACHE STRING "Thoth Browser bundle version" FORCE)
+    set(THOTH_VERSION "0.9.1" CACHE STRING "Thoth Browser bundle version" FORCE)
     if (APPLE)
         set(THOTH_MACOS_DEPLOYMENT_TARGET "${CMAKE_OSX_DEPLOYMENT_TARGET}")
         configure_file(

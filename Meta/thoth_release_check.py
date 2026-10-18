@@ -23,7 +23,7 @@ def main() -> int:
     parser.add_argument("--build-root", type=Path, default=Path.home() / ".cache/thoth-browser")
     parser.add_argument("--skip-asan", action="store_true")
     package_group = parser.add_mutually_exclusive_group()
-    package_group.add_argument("--package", type=Path, default=SOURCE / "Build/alpha2.0/Thoth Browser.app")
+    package_group.add_argument("--package", type=Path, default=SOURCE / "Build/0.9.1/Thoth Browser.app")
     package_group.add_argument(
         "--skip-package",
         action="store_true",

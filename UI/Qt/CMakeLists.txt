@@ -127,6 +127,7 @@ if (LINUX AND NOT ANDROID)
 endif()
 
 if (APPLE)
+    target_link_libraries(ladybird PRIVATE LibHTTP)
     target_sources(ladybird PRIVATE
         ApplicationIcon.mm
         Conversions.mm
@@ -137,11 +138,12 @@ if (APPLE)
         MacWindowFocus.mm
         NativeTextEditingBindings.mm
         Menu.mm
+        MacProxySettings.cpp
         SpellCheckerMac.mm
         WebContentViewAccessibility.mm
         WebContentViewMac.mm
     )
-    target_link_libraries(ladybird PRIVATE Qt::GuiPrivate "-framework ApplicationServices" "-framework Cocoa" "-framework IOSurface" "-framework QuartzCore")
+    target_link_libraries(ladybird PRIVATE Qt::GuiPrivate "-framework ApplicationServices" "-framework CFNetwork" "-framework Cocoa" "-framework IOSurface" "-framework QuartzCore")
     set_source_files_properties(
         LadybirdAccessibilityElement.mm
         SpellCheckerMac.mm

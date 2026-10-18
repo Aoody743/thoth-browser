@@ -11,9 +11,9 @@
         <key>CFBundleName</key>
         <string>Thoth Browser</string>
         <key>CFBundleShortVersionString</key>
-        <string>2.0.0</string>
+        <string>0.9.1</string>
         <key>CFBundleVersion</key>
-        <string>2.0.0</string>
+        <string>0.9.1</string>
         <key>CFBundleGetInfoString</key>
         <string>Thoth Browser</string>
         <key>CFBundleSignature</key>

@@ -1,6 +1,6 @@
 # Thoth Browser Roadmap
 
-This roadmap is the working plan for taking Thoth Browser from the alpha2.0
+This roadmap is the working plan for taking Thoth Browser from the 0.9.1
 frontend prototype to a browser that can be used and released with confidence.
 Each stage has an explicit completion gate; passing unit tests alone does not
 prove a stage that includes real browser behavior.

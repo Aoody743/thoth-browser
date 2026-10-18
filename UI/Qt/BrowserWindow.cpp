@@ -1064,8 +1064,8 @@ void BrowserWindow::display_metadata_changed(Optional<u64> display_id, qreal ref
 void BrowserWindow::update_window_title(QString const& title)
 {
     char const* format = is_private() == WebView::IsPrivate::Yes
-        ? "%1 - Thoth Browser alpha2.0 (Private Browsing)"
-        : "%1 - Thoth Browser alpha2.0";
+        ? "%1 - Thoth Browser 0.9.1 (Private Browsing)"
+        : "%1 - Thoth Browser 0.9.1";
     setWindowTitle(QString(format).arg(title));
 }
 

@@ -13,6 +13,7 @@
 #include <QAbstractAnimation>
 #include <QActionGroup>
 #include <QBuffer>
+#include <QConicalGradient>
 #include <QContextMenuEvent>
 #include <QColorDialog>
 #include <QDialog>
@@ -84,6 +85,9 @@ static constexpr int EXPANDED_ROLE = Qt::UserRole + 7;
 static constexpr int SEPARATOR_ROLE = Qt::UserRole + 8;
 static constexpr int ACTION_ROLE = Qt::UserRole + 9;
 static constexpr int DROP_SLOT_ROLE = Qt::UserRole + 10;
+static constexpr int LOADING_PAGES_ROLE = Qt::UserRole + 11;
+static constexpr int LOADING_COLOR_ROLE = Qt::UserRole + 12;
+static constexpr int PAGE_IDS_ROLE = Qt::UserRole + 13;
 
 static bool prompt_for_name(QWidget* parent, QString title, QString label, QString initial, QString accept_text, QString& result)
 {
@@ -221,6 +225,33 @@ public:
         auto selected = option.state & QStyle::State_Selected;
         auto hovered = option.state & QStyle::State_MouseOver;
         auto pages = index.data(GROUP_ROLE).toStringList();
+        auto page_ids = index.data(PAGE_IDS_ROLE).toStringList();
+        auto loading_pages = index.data(LOADING_PAGES_ROLE).toStringList();
+        auto loading_frame = parent() ? parent()->property("ThothLoadingFrame").toInt() : 0;
+        auto draw_loading_ring = [&](QRectF card, qreal radius) {
+            auto color = index.data(LOADING_COLOR_ROLE).value<QColor>();
+            if (!color.isValid())
+                color = option.palette.color(QPalette::Highlight);
+            color = dark ? color.lighter(145) : color.darker(155);
+            auto faded = color;
+            faded.setAlpha(0);
+            auto soft = color;
+            soft.setAlpha(72);
+            QConicalGradient gradient(card.center(), (loading_frame * 15) % 360);
+            gradient.setColorAt(0.0, faded);
+            gradient.setColorAt(0.68, faded);
+            gradient.setColorAt(0.75, soft);
+            gradient.setColorAt(0.82, color);
+            gradient.setColorAt(0.92, color);
+            gradient.setColorAt(0.98, soft);
+            gradient.setColorAt(1.0, faded);
+            painter->setBrush(Qt::NoBrush);
+            painter->setPen(QPen(soft, 1.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            painter->drawRoundedRect(card.adjusted(1, 1, -1, -1), radius, radius);
+            painter->setPen(QPen(QBrush(gradient), 2.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            painter->drawRoundedRect(card.adjusted(1, 1, -1, -1), radius, radius);
+            painter->setPen(Qt::NoPen);
+        };
         painter->setPen(Qt::NoPen);
         if (pages.size() == 2) {
             painter->setBrush(dark ? QColor("#34323f") : QColor("#dfdce8"));
@@ -243,6 +274,8 @@ public:
                 painter->setPen(dark ? QColor("#eeeaf6") : QColor("#34313f"));
                 painter->drawText(text, Qt::AlignVCenter | Qt::AlignLeft, metrics.elidedText(titles.value(n), Qt::ElideRight, text.width()));
                 painter->setPen(Qt::NoPen);
+                if (loading_pages.contains(page_ids.value(n)))
+                    draw_loading_ring(QRectF(chip), 7);
             }
         } else {
             if (selected || hovered) {
@@ -275,6 +308,8 @@ public:
             }
             painter->setPen(dark ? QColor("#e5e1ed") : QColor("#3b3744"));
             painter->drawText(text_rect, Qt::AlignVCenter | Qt::AlignLeft, QFontMetrics(painter->font()).elidedText(index.data().toString(), Qt::ElideRight, text_rect.width()));
+            if (!folder && loading_pages.contains(page_ids.value(0)))
+                draw_loading_ring(QRectF(rect), 8);
         }
         if (hovered && index.data(PAGE_ROLE).toString() != "folder") {
             auto close_rect = QRect(rect.right() - 28, rect.center().y() - 11, 22, 22);
@@ -724,6 +759,12 @@ public:
             color.setAlpha(105);
 
         painter->save();
+        // QIcon may render an engine into a reused pixmap. Clear the icon's
+        // transparent area first so stale pixels cannot appear as colored
+        // speckles around the workspace glyph.
+        painter->setCompositionMode(QPainter::CompositionMode_Source);
+        painter->fillRect(rect, Qt::transparent);
+        painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
         painter->setRenderHint(QPainter::Antialiasing, true);
         painter->translate(rect.topLeft());
         painter->scale(rect.width() / 20.0, rect.height() / 20.0);
@@ -779,7 +820,14 @@ static QIcon workspace_icon(Workspace const& space, bool)
     auto color = QColor(space.color);
     if (!color.isValid())
         color = QColor("#b9a5df");
-    return QIcon(new WorkspaceIconEngine(space.symbol, color));
+    QPixmap pixmap(40, 40);
+    pixmap.setDevicePixelRatio(2);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    WorkspaceIconEngine engine(space.symbol, color);
+    engine.paint(&painter, QRect(0, 0, 20, 20), QIcon::Normal, QIcon::Off);
+    painter.end();
+    return QIcon(pixmap);
 }
 static QIcon workspace_color_swatch(QString const& color)
 {
@@ -933,7 +981,7 @@ Sidebar::Sidebar(Ladybird::TabWidget& tabs, QStackedWidget& navigation)
     m_space_header->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     m_space_header->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_space_header->setFixedHeight(36);
-    m_space_header->setIconSize({ 18, 18 });
+    m_space_header->setIconSize({ 20, 20 });
     m_space_header->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_space_header, &QToolButton::clicked, this, [this] { workspace_menu(m_model.active_workspace, m_space_header->mapToGlobal(QPoint(0, m_space_header->height()))); });
     connect(m_space_header, &QWidget::customContextMenuRequested, this, [this](QPoint p) { workspace_menu(m_model.active_workspace, m_space_header->mapToGlobal(p)); });
@@ -1082,6 +1130,13 @@ Sidebar::Sidebar(Ladybird::TabWidget& tabs, QStackedWidget& navigation)
     tabs.split_view()->installEventFilter(this);
     tabs.installEventFilter(this);
     browser().installEventFilter(this);
+    m_loading_animation_timer = new QTimer(this);
+    m_loading_animation_timer->setInterval(32);
+    connect(m_loading_animation_timer, &QTimer::timeout, this, [this] {
+        m_loading_animation_frame = (m_loading_animation_frame + 1) % 24;
+        m_tree->setProperty("ThothLoadingFrame", m_loading_animation_frame);
+        m_tree->viewport()->update();
+    });
     auto* timer = new QTimer(this);
     timer->setInterval(500);
     connect(timer, &QTimer::timeout, this, [this] { if (m_ready && !m_closing) refresh(); });
@@ -1309,8 +1364,11 @@ void Sidebar::rebuild()
 {
     auto json = QJsonDocument(m_model.to_json()).toJson(QJsonDocument::Compact);
     QByteArray icons;
-    for (auto const& p : m_model.pages)
+    for (auto const& p : m_model.pages) {
         icons += QByteArray::number(icon(p.id).cacheKey());
+        auto* tab = m_live.value(p.id).data();
+        icons += tab && tab->is_loading() ? '1' : '0';
+    }
     if (m_last_render == json + icons)
         return;
     m_last_render = json + icons;
@@ -1355,6 +1413,7 @@ void Sidebar::rebuild()
         node->setText(0, label(i));
         node->setToolTip(0, label(i));
         node->setData(0, ID_ROLE, i.id);
+        node->setData(0, PAGE_IDS_ROLE, i.pages);
         node->setData(0, SECTION_ROLE, i.section);
             node->setSizeHint(0, { 0, 40 });
         auto font = node->font(0);
@@ -1365,6 +1424,18 @@ void Sidebar::rebuild()
             node->setData(0, PAGE_ROLE, "folder");
         } else
             node->setIcon(0, icon(i.pages.first()));
+        QStringList loading_pages;
+        for (auto const& page : i.pages) {
+            auto* tab = m_live.value(page).data();
+            if (tab && tab->is_loading())
+                loading_pages.append(page);
+        }
+        node->setData(0, LOADING_PAGES_ROLE, loading_pages);
+        if (!loading_pages.isEmpty()) {
+            auto workspace_id = i.workspace.isEmpty() ? m_model.active_workspace : i.workspace;
+            if (auto* workspace = m_model.workspace(workspace_id))
+                node->setData(0, LOADING_COLOR_ROLE, QColor(workspace->color));
+        }
     }
     for (auto const& i : m_model.items) {
         if (!nodes.contains(i.id))
@@ -1399,6 +1470,26 @@ void Sidebar::rebuild()
     QAccessible::updateAccessibility(&accessibility_update);
     m_tree->verticalScrollBar()->setValue(scroll);
     m_body->setVisible(!m_model.collapsed || m_hover_revealed);
+    bool any_visible_page_loading = false;
+    for (auto const& item : m_model.items) {
+        if (!m_model.is_visible(item) || item.folder)
+            continue;
+        for (auto const& page : item.pages) {
+            auto* tab = m_live.value(page).data();
+            if (tab && tab->is_loading()) {
+                any_visible_page_loading = true;
+                break;
+            }
+        }
+        if (any_visible_page_loading)
+            break;
+    }
+    if (any_visible_page_loading) {
+        if (!m_loading_animation_timer->isActive())
+            m_loading_animation_timer->start();
+    } else {
+        m_loading_animation_timer->stop();
+    }
 }
 Ladybird::Tab* Sidebar::ensure_page(QString const& id)
 {
@@ -1462,6 +1553,13 @@ void Sidebar::active_changed(Ladybird::Tab* tab)
         m_navigation_buttons->setCurrentWidget(tab->sidebar_navigation_buttons());
     rebuild();
     save();
+}
+void Sidebar::page_loading_changed(Ladybird::Tab* tab)
+{
+    if (page_id(tab).isEmpty())
+        return;
+    m_last_render.clear();
+    rebuild();
 }
 void Sidebar::refresh()
 {
@@ -2381,7 +2479,7 @@ void Sidebar::rebuild_workspaces()
         auto* button = new WorkspaceButton(m_space_dock->parentWidget());
         install_hover_event_filters(button);
         button->setFixedSize(32, 30);
-        button->setIconSize({ 17, 17 });
+        button->setIconSize({ 19, 19 });
         button->setIcon(workspace_icon(space, dark));
         button->setAccessibleName("Workspace " + space.name);
         button->setToolTip(space.name + (n < 9 ? QString(" · ⌘⌥%1").arg(n + 1) : QString {}));

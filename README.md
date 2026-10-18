@@ -9,7 +9,7 @@
 <p align="center"><a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a></p>
 
 <p align="center">
-  <a href="https://github.com/Aoody743/thoth-browser/releases"><img src="https://img.shields.io/badge/preview-alpha%202.0-c49b59" alt="Preview alpha 2.0"></a>
+  <a href="https://github.com/Aoody743/thoth-browser/releases"><img src="https://img.shields.io/badge/version-0.9.1-c49b59" alt="Version 0.9.1"></a>
   <img src="https://img.shields.io/badge/macOS-14.4%2B-252c35" alt="macOS 14.4 or later">
   <img src="https://img.shields.io/badge/Apple%20Silicon-arm64-252c35" alt="Apple Silicon">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-BSD--2--Clause-252c35" alt="BSD 2-Clause license"></a>
@@ -42,9 +42,9 @@ web can take the space it needs.
 
 ## Download
 
-The alpha release targets **Apple Silicon (arm64)** and **macOS 14.4 or later**.
+Version 0.9.1 targets **Apple Silicon (arm64)** and **macOS 14.4 or later**.
 Download the Developer ID-signed and Apple-notarized disk image from the
-[alpha 2.0 release](https://github.com/Aoody743/thoth-browser/releases/tag/v2.0.0-alpha.2).
+[0.9.1 release](https://github.com/Aoody743/thoth-browser/releases/tag/v0.9.1).
 
 To install, open the downloaded `.dmg` and drag **Thoth Browser** into
 **Applications**.
@@ -75,7 +75,7 @@ To make a self-contained local application bundle:
 python3 Meta/package_thoth.py
 ```
 
-The packaged application is written to `Build/alpha2.0/Thoth Browser.app`.
+The packaged application is written to `Build/0.9.1/Thoth Browser.app`.
 Local packages are ad-hoc signed for development. The GitHub release is signed
 with Developer ID and notarized by Apple.
 

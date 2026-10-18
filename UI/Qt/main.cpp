@@ -57,7 +57,7 @@ ErrorOr<int> ladybird_main(Main::Arguments arguments)
         if (argument == "--"sv)
             break;
         if (argument == "--version"sv) {
-            outln("Thoth Browser alpha2.0");
+            outln("Thoth Browser 0.9.1");
             return 0;
         }
     }
@@ -151,7 +151,7 @@ ErrorOr<int> ladybird_main(Main::Arguments arguments)
             configuration.y = last_position->y();
         }
         auto& window = app->new_window(browser_options.urls, configuration);
-        window.setWindowTitle("Thoth Browser alpha2.0");
+        window.setWindowTitle("Thoth Browser 0.9.1");
         if (window.thoth_sidebar()) window.thoth_sidebar()->restore_session();
 
         app->offer_newest_pending_crash_report();

@@ -84,6 +84,7 @@ public:
 
     WebContentView& view() { return *m_view; }
     WebContentView const& view() const { return *m_view; }
+    bool is_loading() const { return m_is_loading; }
 
     void navigate(URL::URL const&);
     void load_html(StringView);
