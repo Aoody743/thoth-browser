@@ -28,8 +28,15 @@ tests, available AddressSanitizer tests, WebDriver lifecycle and navigation,
 downloads and internal pages, restart restoration, and packaged application
 smoke checks.
 
-The current local package is ad-hoc signed for development. A public macOS
-download will be uploaded after Developer ID signing and Apple notarization.
+The release DMG is signed with Developer ID and notarized by Apple.
+
+Download `Thoth-Browser-alpha2.0-macos-arm64.dmg` from the GitHub release.
+
+SHA-256:
+
+```text
+f01d2fa64b9f1e8138f11a3a29f438b96c343a70c2874fbc0933093dcf38b65d
+```
 
 ## License
 

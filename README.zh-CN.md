@@ -38,8 +38,8 @@ Thoth 是一款面向 macOS 的实验性浏览器，基于
 
 ## 下载
 
-首个 macOS 版本面向 **Apple Silicon（arm64）**，要求 **macOS 14.4 或更高版本**。目前正在准备经过 Developer ID 签名和 Apple 公证的磁盘映像（DMG）；发布后可从
-[GitHub Releases](https://github.com/Aoody743/thoth-browser/releases) 下载。
+此预览版面向 **Apple Silicon（arm64）**，要求 **macOS 14.4 或更高版本**。经过 Developer ID 签名和 Apple 公证的 DMG 可在
+[alpha 2.0 发行页](https://github.com/Aoody743/thoth-browser/releases/tag/v2.0.0-alpha.2) 下载。
 
 安装时，打开下载的 `.dmg`，然后将 **Thoth Browser** 拖入 **Applications（应用程序）** 文件夹。
 
@@ -67,7 +67,7 @@ python3 Meta/thoth.py run --no-build
 python3 Meta/package_thoth.py
 ```
 
-打包后的应用位于 `Build/alpha2.0/Thoth Browser.app`。本地开发包使用临时签名；公开分发需要 Developer ID 签名和 Apple 公证。
+打包后的应用位于 `Build/alpha2.0/Thoth Browser.app`。本地开发包使用临时签名；GitHub 发行版则使用 Developer ID 签名并经过 Apple 公证。
 
 ## 项目状态
 

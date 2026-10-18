@@ -42,10 +42,9 @@ web can take the space it needs.
 
 ## Download
 
-The first macOS release targets **Apple Silicon (arm64)** and **macOS 14.4 or
-later**. A disk image with Developer ID signing and Apple notarization is being
-prepared; it will be available from
-[GitHub Releases](https://github.com/Aoody743/thoth-browser/releases) once published.
+The alpha release targets **Apple Silicon (arm64)** and **macOS 14.4 or later**.
+Download the Developer ID-signed and Apple-notarized disk image from the
+[alpha 2.0 release](https://github.com/Aoody743/thoth-browser/releases/tag/v2.0.0-alpha.2).
 
 To install, open the downloaded `.dmg` and drag **Thoth Browser** into
 **Applications**.
@@ -77,8 +76,8 @@ python3 Meta/package_thoth.py
 ```
 
 The packaged application is written to `Build/alpha2.0/Thoth Browser.app`.
-Local packages are ad-hoc signed for development. Public distribution requires
-a Developer ID signature and Apple notarization.
+Local packages are ad-hoc signed for development. The GitHub release is signed
+with Developer ID and notarized by Apple.
 
 ## Project status
 
