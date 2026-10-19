@@ -32,11 +32,11 @@
 #include <UI/Qt/StringUtils.h>
 #include <UI/Qt/Thoth/Appearance.h>
 #include <UI/Qt/Thoth/Localization.h>
-#include <UI/Qt/Thoth/Sidebar.h>
 #include <UI/Qt/WindowControlButton.h>
 
 #include <LibWebView/TabPerformanceMonitor.h>
 #include <QColorDialog>
+#include <QConicalGradient>
 #include <QFileDialog>
 #include <QFont>
 #include <QFontMetrics>
@@ -48,7 +48,8 @@
 #include <QMimeData>
 #include <QMimeDatabase>
 #include <QPainter>
-#include <QLinearGradient>
+#include <QPainterPath>
+#include <QPainterPathStroker>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QResizeEvent>
@@ -90,35 +91,24 @@ protected:
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing);
 
-        auto accent = palette().color(QPalette::Highlight);
-        if (accent.lightness() < 105)
-            accent = accent.lighter(155);
-        else if (accent.lightness() > 220)
-            accent = accent.darker(155);
+        QPainterPath path;
+        path.addRoundedRect(QRectF(rect()).adjusted(2.5, 2.5, -2.5, -2.5), 11, 11);
+        QPainterPathStroker stroker;
+        stroker.setWidth(2.0);
 
-        constexpr qreal track_height = 4.0;
-        auto track = QRectF(0, 0, width(), track_height);
-        auto track_color = accent;
-        track_color.setAlpha(78);
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(track_color);
-        painter.drawRoundedRect(track, 2, 2);
+        auto highlight = palette().color(QPalette::Highlight);
+        highlight.setAlpha(150);
+        auto quiet = highlight;
+        quiet.setAlpha(18);
+        QConicalGradient gradient(rect().center(), -m_frame * 10.0);
+        gradient.setColorAt(0.0, highlight);
+        gradient.setColorAt(0.08, highlight);
+        gradient.setColorAt(0.22, quiet);
+        gradient.setColorAt(0.62, QColor(0, 0, 0, 0));
+        gradient.setColorAt(0.92, quiet);
+        gradient.setColorAt(1.0, highlight);
 
-        auto segment_width = qMin<qreal>(120, qMax<qreal>(52, width() * 0.18));
-        auto travel = qMax<qreal>(0, width() - segment_width);
-        auto phase = m_frame <= 35 ? m_frame / 35.0 : (70 - m_frame) / 35.0;
-        auto segment = QRectF(travel * phase, 0, segment_width, track_height);
-        auto leading_color = accent;
-        leading_color.setAlpha(0);
-        auto visible_color = accent;
-        visible_color.setAlpha(255);
-        QLinearGradient gradient(segment.topLeft(), segment.topRight());
-        gradient.setColorAt(0.0, leading_color);
-        gradient.setColorAt(0.18, visible_color);
-        gradient.setColorAt(0.82, visible_color);
-        gradient.setColorAt(1.0, leading_color);
-        painter.setBrush(gradient);
-        painter.drawRoundedRect(segment, 2, 2);
+        painter.fillPath(stroker.createStroke(path), gradient);
     }
 
 private:
@@ -648,7 +638,7 @@ Tab::Tab(BrowserWindow* window, Optional<WebView::CanonicalTraversable&> travers
         update_hover_label();
     });
     QObject::connect(m_loading_animation_timer, &QTimer::timeout, this, [this] {
-        m_loading_animation_frame = (m_loading_animation_frame + 1) % 70;
+        m_loading_animation_frame = (m_loading_animation_frame + 1) % 36;
         m_loading_overlay->set_frame(m_loading_animation_frame);
     });
 
@@ -1524,10 +1514,6 @@ void Tab::set_loading(bool is_loading)
 
     m_loading_overlay->setVisible(m_is_loading);
     m_loading_overlay->raise();
-    if (m_window) {
-        if (auto* sidebar = m_window->thoth_sidebar())
-            sidebar->page_loading_changed(this);
-    }
     update_tab_icon();
 }
 
@@ -1628,10 +1614,17 @@ void Tab::update_chrome_style()
         return;
     m_is_updating_chrome_style = true;
     auto toolbar_style = ChromeStyle::toolbar_container_style_sheet(palette());
+#if defined(Q_OS_WIN)
+    // The frameless Windows window paints the chrome itself, so the toolbar row
+    // uses Thoth's background instead of showing through to a native title bar.
     if (m_thoth_sidebar_toolbar) {
         auto thoth_background = Thoth::chrome_background(ChromeStyle::is_dark(palette())).name();
         toolbar_style += QStringLiteral("QWidget#LadybirdToolbarContainer, QWidget#LadybirdNavigationToolbar { background: %1; border: none; } QWidget#LadybirdNavigationToolbar QToolButton { min-width: 26px; min-height: 26px; max-width: 28px; max-height: 28px; border-radius: 7px; } QWidget#LadybirdNavigationToolbar QToolButton::menu-indicator { image: none; width: 0px; height: 0px; }").arg(thoth_background);
     }
+#else
+    if (m_thoth_sidebar_toolbar)
+        toolbar_style += "QWidget#LadybirdToolbarContainer, QWidget#LadybirdNavigationToolbar { background: transparent; border: none; } QWidget#LadybirdNavigationToolbar QToolButton { min-width: 26px; min-height: 26px; max-width: 28px; max-height: 28px; border-radius: 7px; } QWidget#LadybirdNavigationToolbar QToolButton::menu-indicator { image: none; width: 0px; height: 0px; }";
+#endif
     m_toolbar_container->setStyleSheet(toolbar_style);
     auto hover_surface = ChromeStyle::style_sheet_color(ChromeStyle::chrome_surface(palette()));
     auto hover_border = ChromeStyle::style_sheet_color(ChromeStyle::chrome_border(palette()));
