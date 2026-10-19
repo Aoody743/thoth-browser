@@ -4,6 +4,7 @@
  */
 #pragma once
 
+#include <QColor>
 #include <QIcon>
 #include <QString>
 
@@ -12,5 +13,8 @@ namespace Thoth {
 void apply_browser_ui_appearance(QString const& font_id, QString const& palette_id, QString const& icon_weight, QString const& color_scheme = "system");
 QString browser_palette_accent(QString const& palette_id, bool dark);
 QIcon brand_logo_icon(bool dark);
+
+// Background color of Thoth's own chrome (sidebar and the Windows toolbar row).
+QColor chrome_background(bool dark);
 
 }

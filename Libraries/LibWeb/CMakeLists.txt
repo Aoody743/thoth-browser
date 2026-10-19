@@ -1198,7 +1198,7 @@ if ((LINUX OR BSD) AND NOT BUILD_SHARED_LIBS)
     target_link_options(LibWeb INTERFACE LINKER:--allow-multiple-definition)
 endif()
 
-if(NOT BUILD_SHARED_LIBS)
+if(NOT BUILD_SHARED_LIBS AND NOT WIN32)
     add_custom_command(TARGET LibWeb POST_BUILD
         COMMAND ${CMAKE_AR} -x $<TARGET_FILE:libweb_bindings_rust>
         COMMAND ${CMAKE_AR} -x $<TARGET_FILE:libweb_content_blocker_rust>
@@ -1233,3 +1233,4 @@ endif()
 generate_js_bindings(LibWeb)
 # The bindings crate includes the Rust bindings that generating the bindings writes.
 add_dependencies(libweb_bindings_rust-build generate_bindings)
+

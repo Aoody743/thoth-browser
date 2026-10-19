@@ -323,7 +323,14 @@ ErrorOr<void> Application::initialize(Main::Arguments const& arguments)
     bool disable_http_memory_cache = false;
     bool disable_http_disk_cache = false;
     bool disable_content_blocker = false;
+#if defined(AK_OS_WINDOWS)
+    // Helper-process sandboxing is not implemented on Windows yet. Its IPC handle
+    // broker rejects the attachments helpers need, so pages never render unless
+    // the sandbox is disabled. Default to the working configuration.
+    bool disable_sandbox = true;
+#else
     bool disable_sandbox = false;
+#endif
     Vector<ByteString> content_blocker_list_paths;
     Optional<StringView> resource_substitution_map_path;
     bool enable_autoplay = false;
@@ -1068,7 +1075,9 @@ ErrorOr<NonnullRefPtr<WebContentClient>> Application::create_web_content_client(
     auto request_server_connection = TRY(connect_new_request_server_client(session_for_new_view(is_private), RequestServer::SiteBinding::Bound));
     auto image_decoder = TRY(launch_image_decoder_process());
 #if defined(HAVE_WASM_COMPILER_SERVICE)
-    auto wasm_compiler_handle = TRY(connect_new_wasm_compiler_client());
+    // The WebAssembly compiler is optional: if its process cannot be launched, pages still load
+    // (WebAssembly compilation simply fails inside them).
+    auto wasm_compiler_handle = connect_new_wasm_compiler_client();
 #endif
 
     auto cross_process_id_allocator = allocate_cross_process_id_allocator();
@@ -1101,7 +1110,8 @@ ErrorOr<NonnullRefPtr<WebContentClient>> Application::create_web_content_client(
     client->async_set_site_compatibility_data(m_site_compatibility_data);
     connect_to_image_decoder(*client, move(image_decoder));
 #if defined(HAVE_WASM_COMPILER_SERVICE)
-    client->async_connect_to_wasm_compiler(wasm_compiler_handle);
+    if (!wasm_compiler_handle.is_error())
+        client->async_connect_to_wasm_compiler(wasm_compiler_handle.release_value());
 #endif
 
     if (m_content_blocker_list_buffer.has_value())
@@ -1717,7 +1727,10 @@ ErrorOr<void> Application::launch_services()
 
     TRY(launch_request_server());
 #if defined(HAVE_WASM_COMPILER_SERVICE)
-    TRY(launch_wasm_compiler_server());
+    // Keep the browser usable when the WebAssembly compiler cannot be started; pages that do
+    // not use WebAssembly are unaffected.
+    if (auto result = launch_wasm_compiler_server(); result.is_error())
+        warnln("WebAssembly compiler unavailable: {}", result.error());
 #endif
     TRY(launch_compositor_process());
 
@@ -1915,32 +1928,60 @@ ErrorOr<void> Application::launch_wasm_compiler_server()
         if (Core::EventLoop::current().was_exit_requested())
             return;
 
-        if (auto result = launch_wasm_compiler_server(); result.is_error()) {
-            dbgln("Failed to restart WebAssembly compiler: {}", result.error());
-            VERIFY_NOT_REACHED();
-        }
-
-        auto client_count = WebContentClient::client_count() + WorkerProcessManager::the().client_count();
-
-        auto response = m_wasm_compiler_client->send_sync_but_allow_failure<Messages::WasmCompilerServer::ConnectNewClients>(client_count);
-        if (!response || response->handles().size() != client_count) {
-            dbgln("Failed to connect {} new clients to WasmCompiler", client_count);
-            VERIFY_NOT_REACHED();
-        }
-
-        auto handles = response->take_handles();
-
-        WebContentClient::for_each_client([&](WebContentClient& client) {
-            client.async_connect_to_wasm_compiler(handles.take_last());
-            return IterationDecision::Continue;
-        });
-        WorkerProcessManager::the().for_each_client([&](WebWorkerClient& client) {
-            client.async_connect_to_wasm_compiler(handles.take_last());
-            return IterationDecision::Continue;
-        });
+        restart_wasm_compiler_server();
     };
 
     return {};
+}
+
+void Application::restart_wasm_compiler_server()
+{
+    constexpr size_t max_restart_count = 5;
+
+    if (Core::EventLoop::current().was_exit_requested() || m_wasm_compiler_client)
+        return;
+
+    if (m_wasm_compiler_restart_count >= max_restart_count) {
+        warnln("WebAssembly compiler failed to restart repeatedly; WebAssembly compilation is unavailable");
+        return;
+    }
+
+    ++m_wasm_compiler_restart_count;
+
+    if (auto result = launch_wasm_compiler_server(); result.is_error()) {
+        dbgln("Failed to restart WebAssembly compiler: {}", result.error());
+        m_wasm_compiler_restart_timer = Core::Timer::create_single_shot(2000, [this] {
+            restart_wasm_compiler_server();
+        });
+        m_wasm_compiler_restart_timer->start();
+        return;
+    }
+
+    auto client_count = WebContentClient::client_count() + WorkerProcessManager::the().client_count();
+
+    auto response = m_wasm_compiler_client->send_sync_but_allow_failure<Messages::WasmCompilerServer::ConnectNewClients>(client_count);
+    if (!response || response->handles().size() != client_count) {
+        dbgln("Failed to connect {} new clients to the WebAssembly compiler; retrying", client_count);
+        m_wasm_compiler_client = nullptr;
+        m_wasm_compiler_restart_timer = Core::Timer::create_single_shot(2000, [this] {
+            restart_wasm_compiler_server();
+        });
+        m_wasm_compiler_restart_timer->start();
+        return;
+    }
+
+    auto handles = response->take_handles();
+
+    WebContentClient::for_each_client([&](WebContentClient& client) {
+        client.async_connect_to_wasm_compiler(handles.take_last());
+        return IterationDecision::Continue;
+    });
+    WorkerProcessManager::the().for_each_client([&](WebWorkerClient& client) {
+        client.async_connect_to_wasm_compiler(handles.take_last());
+        return IterationDecision::Continue;
+    });
+
+    m_wasm_compiler_restart_count = 0;
 }
 #endif
 
@@ -3989,3 +4030,4 @@ void Application::did_close_devtools_connection()
 }
 
 }
+

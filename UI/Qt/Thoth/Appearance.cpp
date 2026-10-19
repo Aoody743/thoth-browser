@@ -90,6 +90,11 @@ QIcon brand_logo_icon(bool dark)
     return dark ? dark_icon : light_icon;
 }
 
+QColor chrome_background(bool dark)
+{
+    return QColor(dark ? "#211f28" : "#f5f4f8");
+}
+
 void apply_browser_ui_appearance(QString const& font_id, QString const& palette_id, QString const& icon_weight, QString const& color_scheme)
 {
     auto* application = qApp;

@@ -745,6 +745,32 @@ public:
         return size;
     }
 
+    // Qt's default QIconEngine::pixmap()/scaledPixmap() can hand back an
+    // uninitialized pixmap for engines that only implement paint(), which shows
+    // up as random colored noise behind the symbol on Windows. Fill the buffer
+    // ourselves so the icon always has a clean alpha background.
+    QPixmap pixmap(QSize const& size, QIcon::Mode mode, QIcon::State state) override
+    {
+        QPixmap result(size);
+        result.fill(Qt::transparent);
+        QPainter painter(&result);
+        paint(&painter, QRect(QPoint(0, 0), size), mode, state);
+        return result;
+    }
+
+    QPixmap scaledPixmap(QSize const& size, QIcon::Mode mode, QIcon::State state, qreal scale) override
+    {
+        auto pixel_width = qMax(1, qRound(size.width() * scale));
+        auto pixel_height = qMax(1, qRound(size.height() * scale));
+        QPixmap result(pixel_width, pixel_height);
+        result.setDevicePixelRatio(scale);
+        result.fill(Qt::transparent);
+        QPainter painter(&result);
+        painter.scale(scale, scale);
+        paint(&painter, QRect(QPoint(0, 0), size), mode, state);
+        return result;
+    }
+
     void paint(QPainter* painter, QRect const& rect, QIcon::Mode mode, QIcon::State) override
     {
         if (!painter || rect.isEmpty())

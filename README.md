@@ -85,8 +85,11 @@ This is an early preview. Ladybird is an actively developing browser engine, so
 some websites and browser features may not work as expected. This release is
 for trying the interface and providing feedback.
 
-Native Windows builds are experimental upstream and have not been verified for
-Thoth. Windows packaging is not part of this macOS release.
+An experimental Windows (x64) build is also available. It builds the Qt shell
+and the Ladybird engine with MSVC/clang-cl, produces `Thoth.exe`, and paints web
+content through Qt's software path for compatibility. See
+[Documentation/WindowsBuild.md](Documentation/WindowsBuild.md) for prerequisites,
+build commands, packaging, and the current Windows limitations.
 
 ## Credits and license
 

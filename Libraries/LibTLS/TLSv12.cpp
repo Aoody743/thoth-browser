@@ -12,6 +12,7 @@
 
 #ifdef AK_OS_WINDOWS
 #    include <AK/Windows.h>
+#    include <wincrypt.h>
 #    define FD_SET_(fd, set) FD_SET(static_cast<SOCKET>(fd), set)
 #else
 #    define FD_SET_ FD_SET
@@ -20,8 +21,36 @@
 #include <openssl/bio.h>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
+#include <openssl/x509_vfy.h>
 
 namespace TLS {
+
+#if defined(AK_OS_WINDOWS)
+static ErrorOr<void> load_windows_root_certificates(SSL_CTX* ssl_ctx)
+{
+    auto* store = CertOpenSystemStoreW(0, L"ROOT");
+    if (!store)
+        return Error::from_string_literal("Unable to open the Windows ROOT certificate store");
+
+    auto* certificate_store = SSL_CTX_get_cert_store(ssl_ctx);
+    if (!certificate_store) {
+        CertCloseStore(store, 0);
+        return Error::from_string_literal("OpenSSL certificate store is unavailable");
+    }
+
+    PCCERT_CONTEXT context = nullptr;
+    while ((context = CertEnumCertificatesInStore(store, context)) != nullptr) {
+        auto const* encoded = context->pbCertEncoded;
+        if (auto* certificate = d2i_X509(nullptr, &encoded, static_cast<long>(context->cbCertEncoded)); certificate) {
+            X509_STORE_add_cert(certificate_store, certificate);
+            X509_free(certificate);
+        }
+    }
+
+    CertCloseStore(store, 0);
+    return {};
+}
+#endif
 
 static ErrorOr<void> validate_host(ByteString const& host)
 {
@@ -232,9 +261,10 @@ ErrorOr<NonnullOwnPtr<TLSv12>> TLSv12::connect_internal(NonnullOwnPtr<Core::TCPS
     } else {
         // Use the default trusted certificate store
 #if defined(AK_OS_WINDOWS)
-        // https://stackoverflow.com/questions/9507184/can-openssl-on-windows-use-the-system-certificate-store
-        // https://docs.openssl.org/master/man7/OSSL_STORE-winstore/
-        OPENSSL_TRY(SSL_CTX_load_verify_store(ssl_ctx, "org.openssl.winstore://"));
+        // Prefer OpenSSL's winstore provider when the build ships it; vcpkg builds
+        // often omit it, so fall back to enumerating the Windows ROOT store.
+        if (SSL_CTX_load_verify_store(ssl_ctx, "org.openssl.winstore://") != 1)
+            TRY(load_windows_root_certificates(ssl_ctx));
 #else
         OPENSSL_TRY(SSL_CTX_set_default_verify_paths(ssl_ctx));
 #endif

@@ -239,6 +239,7 @@ private:
     void update_hamburger_zoom_label();
 
     void update_chrome_style();
+    void update_thoth_chrome_background();
 
     void initialize_tab_buttons(Tab*);
     void create_menu_bar_window_controls();
@@ -271,6 +272,7 @@ private:
     Tab* m_current_tab { nullptr };
     DevToolsBanner* m_devtools_banner { nullptr };
     QWidget* m_window_drag_strip { nullptr };
+    QWidget* m_main_widget { nullptr };
 
     QWidget* m_menu_bar_window_controls { nullptr };
     QToolButton* m_menu_bar_minimize_window_button { nullptr };

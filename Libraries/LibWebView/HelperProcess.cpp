@@ -665,6 +665,9 @@ ErrorOr<MediaServerClientConnection> connect_new_media_server_client(RefPtr<Medi
 #if defined(HAVE_WASM_COMPILER_SERVICE)
 ErrorOr<IPC::TransportHandle> connect_new_wasm_compiler_client()
 {
+    if (!Application::has_wasm_compiler_client())
+        return Error::from_string_literal("WebAssembly compiler is unavailable");
+
     auto response = Application::wasm_compiler_client().send_sync_but_allow_failure<Messages::WasmCompilerServer::ConnectNewClients>(1);
     if (!response)
         return Error::from_string_literal("Failed to connect to WasmCompiler");

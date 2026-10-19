@@ -23,8 +23,13 @@ function(create_ladybird_bundle target_name)
     else()
         set(thoth_info_plist "${LADYBIRD_SOURCE_DIR}/UI/Info.plist")
     endif()
+    if (WIN32)
+        set(thoth_executable_name "Thoth")
+    else()
+        set(thoth_executable_name "Ladybird")
+    endif()
     set_target_properties(${target_name} PROPERTIES
-        OUTPUT_NAME "Ladybird"
+        OUTPUT_NAME "${thoth_executable_name}"
         MACOSX_BUNDLE_GUI_IDENTIFIER ${THOTH_BUNDLE_IDENTIFIER}
         MACOSX_BUNDLE_BUNDLE_VERSION ${THOTH_BUNDLE_VERSION}
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${THOTH_VERSION}"

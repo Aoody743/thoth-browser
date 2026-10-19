@@ -341,6 +341,7 @@ BrowserWindow::BrowserWindow(Vector<URL::URL> const& initial_urls, IsPopupWindow
     m_tabs_container->set_new_tab_action(Application::the().new_tab_action());
 
     auto* main_widget = new QWidget(this);
+    m_main_widget = main_widget;
     auto* main_layout = new QVBoxLayout(main_widget);
     main_layout->setContentsMargins(0, 0, 0, 0);
     main_layout->setSpacing(0);
@@ -383,6 +384,7 @@ BrowserWindow::BrowserWindow(Vector<URL::URL> const& initial_urls, IsPopupWindow
     setWindowIcon(Thoth::brand_logo_icon(ChromeStyle::is_dark(palette())));
     if (auto* sidebar = thoth_sidebar())
         sidebar->refresh_appearance();
+    update_thoth_chrome_background();
     Thoth::localize_application_ui();
 }
 
@@ -1684,6 +1686,25 @@ void BrowserWindow::changeEvent(QEvent* event)
     QWidget::changeEvent(event);
 }
 
+void BrowserWindow::update_thoth_chrome_background()
+{
+#if defined(Q_OS_WIN)
+    auto background = Thoth::chrome_background(ChromeStyle::is_dark(palette()));
+
+    // The Windows chrome row (toolbar) and the drag strip are transparent so the
+    // page can show through on other platforms; on Windows they sit on top of the
+    // frameless window, which would otherwise paint the default black client area.
+    if (m_main_widget) {
+        m_main_widget->setAutoFillBackground(true);
+        auto widget_palette = m_main_widget->palette();
+        widget_palette.setColor(QPalette::Window, background);
+        m_main_widget->setPalette(widget_palette);
+    }
+    if (m_window_drag_strip)
+        m_window_drag_strip->setStyleSheet(QStringLiteral("background-color: %1;").arg(background.name()));
+#endif
+}
+
 void BrowserWindow::appearance_changed()
 {
     auto const& appearance = Application::settings().appearance();
@@ -1691,6 +1712,7 @@ void BrowserWindow::appearance_changed()
     setWindowIcon(Thoth::brand_logo_icon(ChromeStyle::is_dark(palette())));
     if (auto* sidebar = thoth_sidebar())
         sidebar->refresh_appearance();
+    update_thoth_chrome_background();
     update_chrome_style();
     update_tab_button_icons();
     m_tabs_container->refresh_chrome_appearance();

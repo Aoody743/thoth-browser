@@ -85,7 +85,7 @@ if ((LINUX OR BSD) AND BUILD_SHARED_LIBS)
     target_link_options(LibCompositing PRIVATE LINKER:--exclude-libs=liblibcompositing_rust.a)
 endif()
 
-if(NOT BUILD_SHARED_LIBS)
+if(NOT BUILD_SHARED_LIBS AND NOT WIN32)
     add_custom_command(TARGET LibCompositing POST_BUILD
         COMMAND ${CMAKE_AR} -x $<TARGET_FILE:libcompositing_rust>
         COMMAND ${CMAKE_AR} -qS $<TARGET_FILE:LibCompositing> *.o
@@ -102,3 +102,4 @@ if(NOT BUILD_SHARED_LIBS)
         set_property(SOURCE ${bridge} APPEND PROPERTY OBJECT_DEPENDS ${_libcompositing_rust_lib})
     endforeach()
 endif()
+

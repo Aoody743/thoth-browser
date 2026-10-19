@@ -124,6 +124,8 @@ public:
     static bool has_request_server_control_client() { return the().m_request_server_manager; }
 #if defined(HAVE_WASM_COMPILER_SERVICE)
     static WasmCompilerClient::Client& wasm_compiler_client() { return *the().m_wasm_compiler_client; }
+    static bool has_wasm_compiler_client() { return the().m_wasm_compiler_client; }
+    void restart_wasm_compiler_server();
 #endif
 
     virtual bool supports_system_menu_bar() const { return false; }
@@ -604,6 +606,8 @@ private:
     HashMap<pid_t, Function<void()>> m_image_decoder_exit_handlers;
 #if defined(HAVE_WASM_COMPILER_SERVICE)
     RefPtr<WasmCompilerClient::Client> m_wasm_compiler_client;
+    RefPtr<Core::Timer> m_wasm_compiler_restart_timer;
+    size_t m_wasm_compiler_restart_count { 0 };
 #endif
     RefPtr<CompositorClient> m_compositor_client;
     bool m_reported_compositor_gpu_presentation_unavailable { false };

@@ -30,6 +30,7 @@
 #include <UI/Qt/Menu.h>
 #include <UI/Qt/Popover.h>
 #include <UI/Qt/StringUtils.h>
+#include <UI/Qt/Thoth/Appearance.h>
 #include <UI/Qt/Thoth/Localization.h>
 #include <UI/Qt/Thoth/Sidebar.h>
 #include <UI/Qt/WindowControlButton.h>
@@ -1627,8 +1628,10 @@ void Tab::update_chrome_style()
         return;
     m_is_updating_chrome_style = true;
     auto toolbar_style = ChromeStyle::toolbar_container_style_sheet(palette());
-    if (m_thoth_sidebar_toolbar)
-        toolbar_style += "QWidget#LadybirdToolbarContainer, QWidget#LadybirdNavigationToolbar { background: transparent; border: none; } QWidget#LadybirdNavigationToolbar QToolButton { min-width: 26px; min-height: 26px; max-width: 28px; max-height: 28px; border-radius: 7px; } QWidget#LadybirdNavigationToolbar QToolButton::menu-indicator { image: none; width: 0px; height: 0px; }";
+    if (m_thoth_sidebar_toolbar) {
+        auto thoth_background = Thoth::chrome_background(ChromeStyle::is_dark(palette())).name();
+        toolbar_style += QStringLiteral("QWidget#LadybirdToolbarContainer, QWidget#LadybirdNavigationToolbar { background: %1; border: none; } QWidget#LadybirdNavigationToolbar QToolButton { min-width: 26px; min-height: 26px; max-width: 28px; max-height: 28px; border-radius: 7px; } QWidget#LadybirdNavigationToolbar QToolButton::menu-indicator { image: none; width: 0px; height: 0px; }").arg(thoth_background);
+    }
     m_toolbar_container->setStyleSheet(toolbar_style);
     auto hover_surface = ChromeStyle::style_sheet_color(ChromeStyle::chrome_surface(palette()));
     auto hover_border = ChromeStyle::style_sheet_color(ChromeStyle::chrome_border(palette()));
