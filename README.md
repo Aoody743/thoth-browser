@@ -97,3 +97,14 @@ Thoth is an independent project based on the work of the Ladybird developers.
 It is distributed under the [BSD 2-Clause license](LICENSE); third-party
 components retain their respective licenses. Thoth Browser is not an official
 Ladybird release.
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+- Committers and reviewers: [Aoody743](https://github.com/Aoody743)
+- Approvers: [Aoody743](https://github.com/Aoody743)
+- Privacy policy: This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
+
+Windows release artifacts are currently unsigned while this application is
+pending; see [Documentation/CodeSigning.md](Documentation/CodeSigning.md).
