@@ -155,7 +155,7 @@ The selected SDK must define `VM_MEMORY_APPLICATION_SPECIFIC_2`, which is absent
 from this machine's older Command Line Tools SDK.
 
 The macOS executable is `~/.cache/thoth-browser/Build/release/bin/Thoth Browser.app/Contents/MacOS/Thoth Browser`.
-The displayed version includes `0.9.2 preview` and a separate increasing build number, initially `20261023.1`.
+The displayed version includes `0.9.2 preview` and a separate increasing build number, initially `2610.23.1`.
 Profiles use `Thoth Browser/Profiles`, separate from Ladybird's profiles.
 The underlying engine user-agent remains unchanged for site compatibility.
 

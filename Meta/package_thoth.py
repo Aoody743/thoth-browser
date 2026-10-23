@@ -95,11 +95,11 @@ def main():
     binaries = sorted(macho_files(output), key=lambda path: len(path.parts), reverse=True)
     for path in binaries:
         commands = run("otool", "-l", path)
-        for rpath in re.findall(r"cmd LC_RPATH\n\s*cmdsize \d+\n\s*path (.*?) \(offset", commands):
+        for rpath in set(re.findall(r"cmd LC_RPATH\n\s*cmdsize \d+\n\s*path (.*?) \(offset", commands)):
             if rpath.startswith(("/Users/", "/opt/homebrew/")):
                 run("install_name_tool", "-delete_rpath", rpath, path)
         own_ids = run("otool", "-D", path).splitlines()[1:]
-        dependencies = run("otool", "-L", path).splitlines()[1:]
+        dependencies = [line for line in run("otool", "-L", path).splitlines() if line.startswith("\t")]
         for line in dependencies:
             dependency = line.strip().split(" (")[0]
             if dependency in [item.strip() for item in own_ids]:

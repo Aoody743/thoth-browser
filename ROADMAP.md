@@ -229,7 +229,7 @@ after a real browser restart and persistence cycle has been exercised.
 
 ## Desktop update and camera preview — October 23, 2026
 
-The 0.9.2 preview (`20261023.1`) adds macOS Sparkle updates, with a signed
+The 0.9.2 preview (`2610.23.1`) adds macOS Sparkle updates, with a signed
 archive feed hosted in this repository's GitHub Releases. Update controls include
 automatic checks/downloads, a ready notification, Later and Restart and Install.
 Ordinary workspace metadata is checkpointed before relaunch; active downloads

@@ -1,7 +1,7 @@
 # Desktop update and regression workflow
 
 Thoth 0.9.2 previews display a separate, increasing build number. The initial
-build is `20261023.1`. Set `THOTH_BUNDLE_VERSION` for every subsequent published
+build is `2610.23.1` (`YYMM.DD.sequence`, within Apple bundle-version component limits). Set `THOTH_BUNDLE_VERSION` for every subsequent published
 build; changing the marketing version alone is not sufficient.
 
 macOS uses Sparkle 2.10.0. Its distribution download is pinned by SHA-256 in
