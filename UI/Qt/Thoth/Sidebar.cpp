@@ -4,6 +4,7 @@
  */
 #include "Sidebar.h"
 #include "SidebarGeometry.h"
+#include "SidebarRowActions.h"
 #include "Localization.h"
 #include "Updater.h"
 #include "SidebarAccessibility.h"
@@ -276,7 +277,7 @@ public:
                 }
                 if (n < icons.size())
                     paint_rounded_icon(painter, icons[n].value<QIcon>(), QRect(chip.x() + 6, chip.center().y() - 8, 16, 16));
-                auto text = chip.adjusted(26, 0, hovered && n == 1 ? -27 : -5, 0);
+                auto text = chip.adjusted(26, 0, -5, 0);
                 painter->setPen(dark ? QColor("#eeeaf6") : QColor("#34313f"));
                 painter->drawText(text, Qt::AlignVCenter | Qt::AlignLeft, metrics.elidedText(titles.value(n), Qt::ElideRight, text.width()));
                 painter->setPen(Qt::NoPen);
@@ -289,7 +290,7 @@ public:
                 painter->drawRoundedRect(rect, 8, 8);
             }
             auto folder = index.data(PAGE_ROLE).toString() == "folder";
-            auto text_rect = rect.adjusted(32, 0, hovered && !folder ? -34 : -9, 0);
+            auto text_rect = rect.adjusted(32, 0, -9, 0);
             if (folder) {
                 auto font = option.font;
                 font.setWeight(QFont::Medium);
@@ -316,15 +317,6 @@ public:
             painter->drawText(text_rect, Qt::AlignVCenter | Qt::AlignLeft, QFontMetrics(painter->font()).elidedText(index.data().toString(), Qt::ElideRight, text_rect.width()));
             if (!folder && loading_pages.contains(page_ids.value(0)))
                 draw_loading_ring(QRectF(rect), 8);
-        }
-        if (hovered && index.data(PAGE_ROLE).toString() != "folder") {
-            auto close_rect = sidebar_close_button_rect(option.rect);
-            painter->setPen(Qt::NoPen);
-            painter->setBrush(dark ? QColor("#514c5b") : QColor("#d8d3df"));
-            painter->drawEllipse(close_rect);
-            painter->setPen(QPen(dark ? QColor("#e8e4ed") : QColor("#514b59"), 1.35, Qt::SolidLine, Qt::RoundCap));
-            painter->drawLine(close_rect.center() + QPoint(-3, -3), close_rect.center() + QPoint(3, 3));
-            painter->drawLine(close_rect.center() + QPoint(3, -3), close_rect.center() + QPoint(-3, 3));
         }
         painter->restore();
     }
@@ -1407,6 +1399,7 @@ void Sidebar::rebuild()
     QSignalBlocker favourite_blocker(m_favourites);
     static_cast<SidebarTree*>(m_tree)->reset_drop_target();
     m_tree->clear();
+    m_tree->setColumnWidth(1, 30);
     m_favourites->clear();
     auto* pinned = new QTreeWidgetItem(m_tree);
     pinned->setData(0, SECTION_ROLE, "pinned");
@@ -1491,11 +1484,14 @@ void Sidebar::rebuild()
         if (i.id == m_model.active)
             node->setSelected(true);
         if (!i.folder) {
+            auto* actions = new SidebarRowActions(m_tree, Ladybird::create_chrome_icon(Ladybird::ChromeIcon::TabClose, palette()), localized_text("Close Tab") + " · " + label(i));
+            connect(actions->close_button(), &QToolButton::clicked, this, [this, id = i.id] { close_item(id); });
+            m_tree->setItemWidget(node, 1, actions);
             for (auto const& pid : i.pages) {
                 auto* tab = m_live.value(pid).data();
                 if (!tab || (tab->view().audio_play_state() != Web::HTML::AudioPlayState::Playing && tab->view().page_mute_state() != Web::HTML::MuteState::Muted))
                     continue;
-                auto* mute = new QToolButton(m_tree);
+                auto* mute = new QToolButton(actions);
                 bool muted = tab->view().page_mute_state() == Web::HTML::MuteState::Muted;
                 mute->setIcon(Ladybird::create_chrome_icon(muted ? Ladybird::ChromeIcon::VolumeMuted : Ladybird::ChromeIcon::Volume, palette()));
                 auto text = localized_text(muted ? "Unmute tab" : "Mute tab") + " · " + tab->title();
@@ -1508,7 +1504,8 @@ void Sidebar::rebuild()
                         live->view().toggle_page_mute_state();
                     rebuild();
                 });
-                m_tree->setItemWidget(node, 1, mute);
+                actions->add_audio_button(mute);
+                m_tree->setColumnWidth(1, 56);
                 break;
             }
         }
@@ -2314,13 +2311,6 @@ bool Sidebar::eventFilter(QObject* object, QEvent* event)
         auto position = mouse->position().toPoint();
         auto* item = m_tree->itemAt(position);
         auto id = item ? item->data(0, ID_ROLE).toString() : QString {};
-        if (!id.isEmpty() && item->data(0, PAGE_ROLE).toString() != "folder") {
-            if (sidebar_close_button_rect(*m_tree, *item).contains(position)) {
-                close_item(id);
-                mouse->accept();
-                return true;
-            }
-        }
         auto has_action = item && !item->data(0, ACTION_ROLE).toString().isEmpty();
         auto has_item = !id.isEmpty();
         if (!has_action && !has_item && browser().start_window_move()) {

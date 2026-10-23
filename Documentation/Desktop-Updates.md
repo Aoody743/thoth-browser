@@ -121,3 +121,7 @@ The close hit target now uses visualRect(indexFromItem(item, 0)), shared through
 the geometry helper used by the input handler. An offscreen widget integration
 test records the real delegate rectangle and compares it to the production hit
 rectangle at three sidebar widths, reproducing the old 30px mismatch explicitly.
+
+### Sidebar close controls in 2610.23.5
+
+Replace the delegate-painted hover glyph and viewport click interception with an always-visible QToolButton in the action column. The same widget now owns the close icon, pointer action, keyboard focus and accessible name. Audio controls share the action container without overlapping close; labels no longer change width on hover. Validate at three sidebar widths, with and without audio, and inspect the installed application's actual close icon before publishing.
