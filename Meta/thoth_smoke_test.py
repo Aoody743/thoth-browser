@@ -140,6 +140,14 @@ def main() -> int:
             fail(f"cannot inspect application entitlements: {error}")
         if entitlement_values.get("com.apple.security.get-task-allow"):
             fail("distribution signature contains the development-only get-task-allow entitlement")
+        if entitlement_values.get("com.apple.security.device.camera") is not True:
+            fail("hardened distribution signature is missing camera authorization")
+        if not (contents / "Frameworks/Sparkle.framework").is_dir():
+            fail("distribution package is missing Sparkle.framework")
+        if not (resources / "Sparkle-LICENSE").is_file():
+            fail("distribution package is missing the Sparkle license")
+        if not info.get("SUFeedURL", "").startswith("https://") or not info.get("SUPublicEDKey"):
+            fail("distribution package must contain its HTTPS update feed and verification key")
 
     print(f"PASS: {app.name}, version {EXPECTED_VERSION}, bundle {info['CFBundleVersion']}")
     return 0
