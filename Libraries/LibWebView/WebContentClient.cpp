@@ -692,10 +692,16 @@ Messages::WebContentClient::CameraDevicesResponse WebContentClient::camera_devic
     return { endpoint ? endpoint->camera_devices() : "[]"_string };
 }
 
-Messages::WebContentClient::StartVideoCaptureResponse WebContentClient::start_video_capture(Web::PageId page_id, String device_id)
+Messages::WebContentClient::StartVideoCaptureResponse WebContentClient::start_video_capture(Web::PageId page_id, String device_id, String configuration)
 {
     auto* endpoint = page(page_id);
-    return { endpoint ? endpoint->start_video_capture(move(device_id)) : 0 };
+    return { endpoint ? endpoint->start_video_capture(move(device_id), move(configuration)) : 0 };
+}
+
+Messages::WebContentClient::ConfigureVideoCaptureResponse WebContentClient::configure_video_capture(Web::PageId page_id, u64 capture_id, String configuration)
+{
+    auto* endpoint = page(page_id);
+    return { endpoint && endpoint->configure_video_capture(capture_id, configuration) };
 }
 
 Messages::WebContentClient::VideoCaptureFrameResponse WebContentClient::video_capture_frame(Web::PageId page_id, u64 capture_id)

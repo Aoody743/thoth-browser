@@ -1703,9 +1703,10 @@ void HTMLMediaElement::load_local_resource(MediaProvider const& media_provider, 
             m_network_state = NetworkState::Idle;
             m_delaying_the_load_event.clear();
             set_duration(INFINITY);
-            m_media_stream_frame_timer = Core::Timer::create_repeating(33, GC::weak_callback(*this, [](auto& self) {
+            m_media_stream_frame_timer = Core::Timer::create_repeating(16, GC::weak_callback(*this, [](auto& self) {
                 self.update_media_stream_frame();
             }));
+            m_media_stream_frame_timer->start();
             update_media_stream_frame();
         },
         [&](GC::Ref<FileAPI::Blob>) {

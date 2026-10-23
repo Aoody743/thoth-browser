@@ -252,9 +252,11 @@ Real-device acceptance passed first-frame events, preview pixels, pause/freeze,
 disabled-track opaque black frames, cloned-track lifetime, stop and response
 Permissions-Policy denial. Camera grants are rechecked by the frontend after
 navigation, so renderer permission caching cannot reuse an old capture owner.
-The first capture path samples frames at 10 Hz, normally 640×480. Cross-origin
-camera delegation, WebRTC calling, recording and complete constraint negotiation
-are not included. Media response restrictions are an explicitly limited subset
+Camera format negotiation now enumerates native dimensions and frame-rate ranges,
+prefers 1080p30 by default, and supports exact/min/max/ideal constraints, ordered
+advanced sets, crop/downsampling, capabilities and live applyConstraints changes.
+The fixed 640×480 preset and 10 Hz transfer limit have been removed. Cross-origin
+camera delegation, WebRTC calling, recording and other device controls are not included. Media response restrictions are an explicitly limited subset
 of Permissions Policy, not a claim of full policy support.
 
 Five Qt suites pass, including stale accessibility-row queries after rebuilding

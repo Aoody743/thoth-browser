@@ -189,7 +189,8 @@ private:
     virtual Messages::WebContentClient::DidRequestStorageKeysResponse did_request_storage_keys(Web::PageId page_id, Web::StorageAPI::StorageEndpointType, Web::HTML::EnvironmentId environment_id) override;
     virtual Messages::WebContentClient::DidRequestStorageUsageResponse did_request_storage_usage(Web::PageId page_id, Web::HTML::EnvironmentId environment_id) override;
     virtual Messages::WebContentClient::CameraDevicesResponse camera_devices(Web::PageId page_id) override;
-    virtual Messages::WebContentClient::StartVideoCaptureResponse start_video_capture(Web::PageId page_id, String device_id) override;
+    virtual Messages::WebContentClient::StartVideoCaptureResponse start_video_capture(Web::PageId page_id, String device_id, String configuration) override;
+    virtual Messages::WebContentClient::ConfigureVideoCaptureResponse configure_video_capture(Web::PageId, u64 capture_id, String configuration) override;
     virtual Messages::WebContentClient::VideoCaptureFrameResponse video_capture_frame(Web::PageId page_id, u64 capture_id) override;
     virtual Messages::WebContentClient::DidStartDownloadWithoutRequestResponse did_start_download_without_request(Web::PageId page_id, URL::URL, ByteString suggested_filename, Optional<u64> total_size) override;
     virtual Messages::WebContentClient::DidStartDownloadResponse did_start_download(Web::PageId page_id, Web::HTML::CrossProcessId navigable_id, Optional<Utf16String> navigation_id, URL::URL, ByteString suggested_filename, Optional<u64> total_size, int request_server_client_id, u64 request_server_request_id, ByteBuffer initial_data) override;

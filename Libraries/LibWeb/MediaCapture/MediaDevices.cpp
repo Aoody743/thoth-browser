@@ -7,12 +7,11 @@
 #include <AK/AnyOf.h>
 #include <AK/JsonArray.h>
 #include <AK/JsonObject.h>
-#include <LibCore/Timer.h>
-#include <LibGfx/Bitmap.h>
-#include <LibWeb/Page/Page.h>
 #include <LibAudio/AudioDevices.h>
+#include <LibCore/Timer.h>
 #include <LibGC/Heap.h>
 #include <LibGC/Root.h>
+#include <LibGfx/Bitmap.h>
 #include <LibJS/Runtime/Array.h>
 #include <LibJS/Runtime/Error.h>
 #include <LibJS/Runtime/NativeFunction.h>
@@ -27,10 +26,12 @@
 #include <LibWeb/HTML/Scripting/TemporaryExecutionContext.h>
 #include <LibWeb/HTML/Window.h>
 #include <LibWeb/HighResolutionTime/TimeOrigin.h>
+#include <LibWeb/MediaCapture/CameraConstraints.h>
 #include <LibWeb/MediaCapture/MediaDeviceInfo.h>
 #include <LibWeb/MediaCapture/MediaDevices.h>
 #include <LibWeb/MediaCapture/MediaStream.h>
 #include <LibWeb/MediaCapture/MediaStreamTrack.h>
+#include <LibWeb/Page/Page.h>
 #include <LibWeb/PermissionsAPI/Permissions.h>
 #include <LibWeb/Platform/EventLoopPlugin.h>
 #include <LibWeb/WebIDL/CallbackType.h>
@@ -132,6 +133,7 @@ void MediaDevices::visit_edges(Cell::Visitor& visitor)
     for (auto const& capture : m_camera_tracks) {
         visitor.visit(capture.value.promise);
         visitor.visit(capture.value.stream);
+        visitor.visit(capture.value.apply_promise);
     }
     for (auto const& request : m_pending_enumerate_devices_requests)
         visitor.visit(request.promise);
@@ -607,46 +609,68 @@ void MediaDevices::queue_video_capture_task(GC::Ref<WebIDL::Promise> promise, Me
                 WebIDL::reject_promise(*promise, WebIDL::NotFoundError::create("No camera devices available"_utf16));
                 return;
             }
-            auto requested_ids = extract_device_id_constraint(constraints.device_id);
-            Optional<String> selected_id;
-            Utf16String selected_label;
-            for (auto const& value : devices.value().as_array().values()) {
-                if (!value.is_object())
-                    continue;
-                auto id = value.as_object().get_string("id"sv);
-                auto label = value.as_object().get_string("label"sv);
-                if (!id.has_value() || !label.has_value())
-                    continue;
-                if (requested_ids.has_value() && !requested_ids->contains_slow(Utf16String::from_utf8(*id)))
-                    continue;
-                selected_id = *id;
-                selected_label = Utf16String::from_utf8(*label);
-                break;
-            }
-            if (!selected_id.has_value()) {
-                WebIDL::reject_promise(*promise, WebIDL::DOMException::create("OverconstrainedError"_utf16_fly_string, "Requested camera device not found"_utf16));
+            auto selected = select_camera(devices.value().as_array(), constraints);
+            if (!selected.has_value()) {
+                WebIDL::reject_promise(*promise, WebIDL::DOMException::create("OverconstrainedError"_utf16_fly_string, "No camera mode satisfies the requested resolution, aspect ratio, frame rate and device constraints"_utf16));
                 return;
             }
-            auto capture_id = self->m_window->page().client().start_video_capture(*selected_id);
+            auto capture_id = self->m_window->page().client().start_video_capture(selected->device_id, selected->configuration.serialized());
             if (!capture_id) {
                 WebIDL::reject_promise(*promise, WebIDL::NotReadableError::create("The camera could not be started"_utf16));
                 return;
             }
-            auto track = MediaStreamTrack::create(MediaStreamTrackKind::Video, move(selected_label));
-            MediaTrackSettings track_settings;
-            track_settings.device_id = Utf16String::from_utf8(*selected_id);
-            track->set_settings(move(track_settings));
+            auto track = MediaStreamTrack::create(MediaStreamTrackKind::Video, move(selected->label));
+            track->set_settings(move(selected->settings));
+            track->set_capabilities(move(selected->capabilities));
+            track->set_camera_constraints(constraints);
             auto stream = MediaStream::create();
             stream->append_track(track);
             track->on_video_capture_stopped = [weak_self = GC::Weak<MediaDevices>(self), capture_id] {
                 if (!weak_self.ptr())
                     return;
+                auto entry = weak_self->m_camera_tracks.get(capture_id);
+                if (entry.has_value() && entry->apply_promise)
+                    WebIDL::resolve_promise(*entry->apply_promise, JS::js_undefined());
                 weak_self->m_window->page().client().stop_video_capture(capture_id);
                 weak_self->m_camera_tracks.remove(capture_id);
             };
-            self->m_camera_tracks.set(capture_id, { .track = track, .promise = *promise, .stream = stream, .audio_device_ids = move(audio_device_ids), .constraints = move(constraints), .audio_requested = audio_requested });
+            track->on_apply_video_constraints = [weak_self = GC::Weak<MediaDevices>(self), capture_id](MediaTrackConstraints const& updated, GC::Ref<WebIDL::Promise> apply_promise) {
+                if (!weak_self.ptr()) {
+                    WebIDL::reject_promise(apply_promise, WebIDL::InvalidStateError::create("Camera source is no longer available"_utf16));
+                    return;
+                }
+                auto entry = weak_self->m_camera_tracks.find(capture_id);
+                if (entry == weak_self->m_camera_tracks.end()) {
+                    WebIDL::reject_promise(apply_promise, WebIDL::InvalidStateError::create("Camera source has ended"_utf16));
+                    return;
+                }
+                auto cameras = JsonValue::from_string(weak_self->m_window->page().client().camera_devices());
+                JsonArray source_devices;
+                if (!cameras.is_error() && cameras.value().is_array()) {
+                    for (auto const& camera : cameras.value().as_array().values()) {
+                        if (camera.is_object() && camera.as_object().get_string("id"sv).has_value() && Utf16String::from_utf8(*camera.as_object().get_string("id"sv)) == *entry->value.track->get_settings().device_id)
+                            MUST(source_devices.append(camera));
+                    }
+                }
+                auto selection = select_camera(source_devices, updated);
+                if (!selection.has_value()) {
+                    WebIDL::reject_promise(apply_promise, WebIDL::DOMException::create("OverconstrainedError"_utf16_fly_string, "The camera cannot satisfy these constraints"_utf16));
+                    return;
+                }
+                if (!weak_self->m_window->page().client().configure_video_capture(capture_id, selection->configuration.serialized())) {
+                    WebIDL::reject_promise(apply_promise, WebIDL::NotReadableError::create("The camera could not change its capture format"_utf16));
+                    return;
+                }
+                if (entry->value.apply_promise)
+                    WebIDL::reject_promise(*entry->value.apply_promise, WebIDL::AbortError::create("Superseded by a newer camera constraint request"_utf16));
+                entry->value.apply_promise = apply_promise;
+                entry->value.pending_settings = move(selection->settings);
+                entry->value.constraints = updated;
+                entry->value.last_frame_at = MonotonicTime::now();
+            };
+            self->m_camera_tracks.set(capture_id, { .track = track, .promise = *promise, .stream = stream, .apply_promise = nullptr, .pending_settings = {}, .audio_device_ids = move(audio_device_ids), .constraints = move(constraints), .audio_requested = audio_requested });
             if (!self->m_camera_frame_timer)
-                self->m_camera_frame_timer = Core::Timer::create_repeating(100, GC::weak_callback(*self, [](auto& devices) { devices.poll_camera_frames(); }));
+                self->m_camera_frame_timer = Core::Timer::create_repeating(16, GC::weak_callback(*self, [](auto& devices) { devices.poll_camera_frames(); }));
             self->m_camera_frame_timer->start();
         }));
 }
@@ -663,6 +687,14 @@ static bool satisfies_camera_dimension(Optional<Variant<u32, ConstrainULongRange
 
 void MediaDevices::poll_camera_frames()
 {
+    double maximum_frame_rate = 1;
+    for (auto const& capture : m_camera_tracks) {
+        if (auto track = capture.value.track.ptr()) {
+            auto const& settings = capture.value.pending_settings.has_value() ? *capture.value.pending_settings : track->get_settings();
+            maximum_frame_rate = max(maximum_frame_rate, settings.frame_rate.value_or(30));
+        }
+    }
+    m_camera_frame_timer->set_interval(clamp(static_cast<int>(1000 / maximum_frame_rate), 1, 1000));
     Vector<u64> ids;
     for (auto const& capture : m_camera_tracks)
         ids.append(capture.key);
@@ -678,6 +710,9 @@ void MediaDevices::poll_camera_frames()
             continue;
         }
         GC::Root rooted_track(*track);
+        auto frame_rate = track->get_settings().frame_rate.value_or(30);
+        if (!capture.promise && !capture.apply_promise && (MonotonicTime::now() - capture.last_frame_at).to_milliseconds() < 1000.0 / frame_rate - 2)
+            continue;
         auto frame = m_window->associated_document().is_fully_active() ? m_window->page().client().video_capture_frame(id) : Gfx::ShareableBitmap {};
         if (!frame.is_valid()) {
             if ((MonotonicTime::now() - capture.last_frame_at).to_seconds() < 10 && m_window->associated_document().is_fully_active())
@@ -686,10 +721,27 @@ void MediaDevices::poll_camera_frames()
                 HTML::TemporaryExecutionContext context { WebIDL::promise_realm(*capture.promise), HTML::TemporaryExecutionContext::CallbacksEnabled::Yes };
                 WebIDL::reject_promise(*capture.promise, WebIDL::NotReadableError::create("The camera stopped delivering frames"_utf16));
             }
+            if (capture.apply_promise) {
+                HTML::TemporaryExecutionContext context { WebIDL::promise_realm(*capture.apply_promise), HTML::TemporaryExecutionContext::CallbacksEnabled::Yes };
+                WebIDL::reject_promise(*capture.apply_promise, WebIDL::NotReadableError::create("The camera stopped delivering frames while changing format"_utf16));
+            }
             track->end();
             m_window->page().client().stop_video_capture(id);
             m_camera_tracks.remove(id);
             continue;
+        }
+        if (capture.apply_promise && capture.pending_settings.has_value()) {
+            // Old preview frames may still be in flight during a format change.
+            if (static_cast<u32>(frame.bitmap()->width()) != *capture.pending_settings->width || static_cast<u32>(frame.bitmap()->height()) != *capture.pending_settings->height)
+                continue;
+            HTML::TemporaryExecutionContext context { WebIDL::promise_realm(*capture.apply_promise), HTML::TemporaryExecutionContext::CallbacksEnabled::Yes };
+            track->set_settings(*capture.pending_settings);
+            track->set_camera_constraints(capture.constraints);
+            track->set_video_frame(NonnullRefPtr(*frame.bitmap()));
+            WebIDL::resolve_promise(*capture.apply_promise, JS::js_undefined());
+            auto current = m_camera_tracks.find(id);
+            current->value.apply_promise = nullptr;
+            current->value.pending_settings = {};
         }
         if (capture.promise) {
             HTML::TemporaryExecutionContext context { WebIDL::promise_realm(*capture.promise), HTML::TemporaryExecutionContext::CallbacksEnabled::Yes };

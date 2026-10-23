@@ -116,6 +116,7 @@ public:
 
     // Invoked once after the last live clone releases the camera source.
     Function<void()> on_video_capture_stopped;
+    Function<void(MediaTrackConstraints const&, GC::Ref<WebIDL::Promise>)> on_apply_video_constraints;
     void set_video_frame(NonnullRefPtr<Gfx::Bitmap>);
     RefPtr<Gfx::Bitmap> video_frame() const;
 
@@ -126,7 +127,9 @@ public:
     bool is_audio() const;
     bool is_video() const;
 
-    MediaTrackCapabilities get_capabilities() const { return {}; }
+    MediaTrackCapabilities get_capabilities() const { return m_capabilities; }
+    void set_capabilities(MediaTrackCapabilities capabilities) { m_capabilities = move(capabilities); }
+    void set_camera_constraints(MediaTrackConstraints constraints) { m_constraints = move(constraints); }
     MediaTrackConstraints const& get_constraints() const;
     MediaTrackSettings const& get_settings() const;
     GC::Ref<WebIDL::Promise> apply_constraints(JS::Object const& relevant_global_object, Optional<MediaTrackConstraints> constraints);
@@ -177,6 +180,7 @@ private:
     MediaStreamTrackState m_state { MediaStreamTrackState::Live };
 
     MediaTrackConstraints m_constraints;
+    MediaTrackCapabilities m_capabilities;
     MediaTrackSettings m_settings;
 
     u64 m_provider_id { 0 };

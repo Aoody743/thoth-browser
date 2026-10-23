@@ -830,7 +830,8 @@ public:
     virtual void page_did_start_geolocation_position_watch([[maybe_unused]] u64 request_id) { }
     virtual void page_did_stop_geolocation_position_watch([[maybe_unused]] u64 request_id) { }
     virtual String camera_devices() { return "[]"_string; }
-    virtual u64 start_video_capture(String const&) { return 0; }
+    virtual u64 start_video_capture(String const&, String const&) { return 0; }
+    virtual bool configure_video_capture(u64, String const&) { return false; }
     virtual Gfx::ShareableBitmap video_capture_frame(u64) { return {}; }
     virtual void stop_video_capture(u64) { }
     virtual void page_did_request_permission([[maybe_unused]] u64 request_id, [[maybe_unused]] Utf16String const& name) { }

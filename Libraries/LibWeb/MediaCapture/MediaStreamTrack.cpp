@@ -193,6 +193,7 @@ GC::Ref<MediaStreamTrack> MediaStreamTrack::clone() const
     // 5. FIXME: Set trackClone's [[Capabilities]] to a clone of track's [[Capabilities]].
     // 6. Set trackClone's [[Constraints]] to a clone of track's [[Constraints]].
     track_clone->m_constraints = m_constraints;
+    track_clone->m_capabilities = m_capabilities;
     // 7. Set trackClone's [[Settings]] to a clone of track's [[Settings]].
     track_clone->m_settings = m_settings;
 
@@ -255,12 +256,20 @@ MediaTrackConstraints const& MediaStreamTrack::get_constraints() const
 // https://w3c.github.io/mediacapture-main/#dom-mediastreamtrack-getsettings
 MediaTrackSettings const& MediaStreamTrack::get_settings() const
 {
-    return m_settings;
+    return m_video_source_track ? m_video_source_track->m_settings : m_settings;
 }
 
 // https://w3c.github.io/mediacapture-main/#dom-mediastreamtrack-applyconstraints
 GC::Ref<WebIDL::Promise> MediaStreamTrack::apply_constraints(JS::Object const& relevant_global_object, Optional<MediaTrackConstraints> constraints)
 {
+    if (is_video() && m_state == MediaStreamTrackState::Live) {
+        auto* source = m_video_source_track ? m_video_source_track.ptr() : this;
+        if (source->on_apply_video_constraints) {
+            auto promise = WebIDL::create_promise(HTML::relevant_realm(relevant_global_object));
+            source->on_apply_video_constraints(constraints.value_or(MediaTrackConstraints {}), promise);
+            return promise;
+        }
+    }
     apply_constraints_impl(move(constraints));
     return WebIDL::create_resolved_promise_for(relevant_global_object, JS::js_undefined());
 }

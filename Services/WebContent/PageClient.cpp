@@ -1197,10 +1197,16 @@ String PageClient::camera_devices()
     return response ? response->take_devices() : "[]"_string;
 }
 
-u64 PageClient::start_video_capture(String const& device_id)
+u64 PageClient::start_video_capture(String const& device_id, String const& configuration)
 {
-    auto response = client().send_sync_but_allow_failure<Messages::WebContentClient::StartVideoCapture>(m_id, device_id);
+    auto response = client().send_sync_but_allow_failure<Messages::WebContentClient::StartVideoCapture>(m_id, device_id, configuration);
     return response ? response->capture_id() : 0;
+}
+
+bool PageClient::configure_video_capture(u64 capture_id, String const& configuration)
+{
+    auto response = client().send_sync_but_allow_failure<Messages::WebContentClient::ConfigureVideoCapture>(m_id, capture_id, configuration);
+    return response && response->success();
 }
 
 Gfx::ShareableBitmap PageClient::video_capture_frame(u64 capture_id)

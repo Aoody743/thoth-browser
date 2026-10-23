@@ -1477,16 +1477,24 @@ String WebContentPage::camera_devices()
     return view().on_camera_devices(*m_camera_grant);
 }
 
-u64 WebContentPage::start_video_capture(String device_id)
+u64 WebContentPage::start_video_capture(String device_id, String configuration)
 {
     if (!is_open() || !m_camera_grant.has_value() || *m_camera_grant != view().url().origin() || !view().on_start_video_capture || m_video_captures.size() >= 8)
         return 0;
-    auto capture = view().on_start_video_capture(*m_camera_grant, device_id);
+    auto capture = view().on_start_video_capture(*m_camera_grant, device_id, configuration);
     if (!capture)
         return 0;
     auto id = ++m_next_video_capture_id;
     m_video_captures.set(id, capture.release_nonnull());
     return id;
+}
+
+bool WebContentPage::configure_video_capture(u64 capture_id, String const& configuration)
+{
+    if (!is_open() || !m_camera_grant.has_value() || *m_camera_grant != view().url().origin())
+        return false;
+    auto capture = m_video_captures.get(capture_id);
+    return capture.has_value() && (*capture)->configure(configuration);
 }
 
 Gfx::ShareableBitmap WebContentPage::video_capture_frame(u64 capture_id)

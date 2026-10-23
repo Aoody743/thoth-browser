@@ -71,6 +71,8 @@ private:
         GC::Weak<MediaStreamTrack> track;
         GC::Ptr<WebIDL::Promise> promise;
         GC::Ptr<MediaStream> stream;
+        GC::Ptr<WebIDL::Promise> apply_promise;
+        Optional<MediaTrackSettings> pending_settings;
         Optional<Vector<Utf16String>> audio_device_ids;
         MediaTrackConstraints constraints;
         bool audio_requested { false };

@@ -218,8 +218,21 @@ QTreeWidgetItem pointers across rebuilds.
 Camera acceptance scripts use temporary profiles and a localhost fixture. Run
 `Meta/thoth_camera_test.py <WebDriver>` for denial/constraint/policy checks; use
 `--hardware` only when local camera capture is intended. Hardware acceptance
-covers video metadata, Canvas pixels, pause, disabled-track black frames, clones
-and stopping. The initial implementation transfers preview frames at 10 Hz,
-usually 640×480. It does not provide RTCPeerConnection/WebRTC calling. Cross-origin
-frame camera delegation, recording and complete constrainable-device negotiation
-remain separate engine work.
+covers video metadata, Canvas pixels, pause, disabled-track black frames, clones,
+stopping, and live changes through 640×480, 1280×720, 1920×1080 and arbitrary
+smaller dimensions. `--hardware --allow-site-camera` explicitly remembers the
+localhost camera grant in the disposable test profile; macOS permission still applies.
+
+Camera formats and frame-rate ranges are enumerated from AVFoundation rather
+than a fixed preset. Resolution, aspect ratio, frame rate, device ID and resize
+mode honor exact/min/max and ideal constraints, including ordered advanced sets.
+Native output is preferred where possible; crop-and-scale supports smaller output
+sizes without upscaling. Defaults prefer 1080p30, falling back to actual device
+capabilities. `getCapabilities()`, `getSettings()`, `getConstraints()` and
+`applyConstraints()` expose and change the camera configuration. A successful
+change waits for a frame of the requested size. Unsupported required constraints
+reject without interrupting the existing capture. Native frame allocation is
+bounded to 256 MiB (including stride), supporting native 4K/8K dimensions.
+
+This does not provide RTCPeerConnection/WebRTC calling. Cross-origin frame camera
+delegation, recording and other device controls remain separate engine work.

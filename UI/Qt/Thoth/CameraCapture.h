@@ -8,6 +8,7 @@
 
 #include <QImage>
 #include <QJsonArray>
+#include <QJsonObject>
 #include <QString>
 #include <functional>
 #include <memory>
@@ -31,7 +32,7 @@ public:
     // Call start/stop from the owning UI thread. latest_frame is safe from any thread.
     // Requires OS permission already granted. Configures the session and schedules
     // capture on a private queue; hardware startup errors yield no frames.
-    bool start(QString& error);
+    bool start(QJsonObject const& configuration, QString& error);
     // Null until first delivery, or once the latest frame is over one second old.
     QImage latest_frame() const;
     void stop();

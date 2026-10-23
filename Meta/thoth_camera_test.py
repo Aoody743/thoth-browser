@@ -32,6 +32,9 @@ PAGE = r'''<!doctype html><meta charset="utf-8"><title>Thoth camera acceptance</
 you intend to test your camera. Stop releases both the original and cloned tracks.</p>
 <button id="start" onclick="startCamera()">Start camera</button>
 <button id="stop" onclick="stopCamera()">Stop all tracks</button>
+<button onclick="configureCamera({width:{exact:640},height:{exact:480}})">480p</button>
+<button onclick="configureCamera({width:{exact:1280},height:{exact:720}})">720p</button>
+<button onclick="configureCamera({width:{exact:1920},height:{exact:1080}})">1080p</button>
 <button id="devices" onclick="showDevices()">List devices</button>
 <button id="clone" onclick="cloneCamera()">Clone and stop original</button>
 <button id="frame" onclick="inspectFrame()">Check video frame</button>
@@ -54,6 +57,14 @@ function report(result) {
     return result;
 }
 function errorResult(error) { return {state:'error',name:error.name,message:error.message}; }
+async function configureCamera(constraints) {
+    try {
+        const track = window.cameraStreams.at(-1).getVideoTracks()[0];
+        await track.applyConstraints(constraints);
+        window.configurationResult = {state:'configured',settings:track.getSettings(),constraints:track.getConstraints()};
+    } catch(error) { window.configurationResult = errorResult(error); }
+    document.getElementById('status').textContent = JSON.stringify(window.configurationResult,null,2);
+}
 async function showDevices() {
     try {
         const devices = (await navigator.mediaDevices.enumerateDevices()).map(d => ({kind:d.kind,deviceId:d.deviceId,label:d.label,groupId:d.groupId}));
@@ -61,12 +72,12 @@ async function showDevices() {
         return devices;
     } catch(error) { report(errorResult(error)); return []; }
 }
-async function startCamera() {
+async function startCamera(constraints = true) {
     stopCamera();
     window.cameraEvents = [];
     report({state:'requesting'});
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({video:true,audio:false});
+        const stream = await navigator.mediaDevices.getUserMedia({video:constraints,audio:false});
         window.cameraStreams.push(stream);
         video.srcObject = stream;
         try { await video.play(); } catch(error) { /* metadata polling reports playback failure */ }
@@ -169,10 +180,10 @@ def enumerate_devices(port, session):
 
 
 def run_checks(args, profile, base):
-    if not args.hardware:
+    if not args.hardware or args.allow_site_camera:
         config = profile / "config"
         config.mkdir()
-        (config / "thoth-site-permissions.json").write_text(json.dumps({"schema":1,"camera":{base:False},"microphone":{base:False}}))
+        (config / "thoth-site-permissions.json").write_text(json.dumps({"schema":1,"camera":{base:args.hardware and args.allow_site_camera},"microphone":{base:False}}))
     port = HELPERS["unused_port"]()
     log_path = profile / "webdriver.log"
     with log_path.open("w") as log:
@@ -206,7 +217,7 @@ def run_checks(args, profile, base):
                     raise AssertionError(f"Blocked site camera request did not reject with NotAllowedError: {result}")
                 checks.append({"check":"remembered website denial", "result":result})
             else:
-                print("Hardware mode: approve website/macOS camera prompts yourself. No dialog will be accepted automatically.", flush=True)
+                print("Hardware mode: localhost camera grant is explicitly enabled in the disposable profile." if args.allow_site_camera else "Hardware mode: approve website/macOS camera prompts yourself.", flush=True)
                 script(port, session, "startCamera(); return true;")
                 result = wait_script(port, session, "return window.cameraResult;", lambda x:isinstance(x,dict) and x.get("state") in ("live","error"), args.permission_timeout)
                 if result.get("state") != "live":
@@ -221,6 +232,29 @@ def run_checks(args, profile, base):
                 if frame.get("state") != "frame" or frame.get("opaquePixels",0) == 0:
                     raise AssertionError(f"Video did not produce canvas pixels: {frame}")
                 checks.append({"check":"hardware preview pixels", "result":frame})
+                def configure(constraints):
+                    script(port,session,"window.configurationResult=null;configureCamera(" + json.dumps(constraints) + ");return true;")
+                    return wait_script(port,session,"return window.configurationResult;",lambda x:isinstance(x,dict),30)
+                capabilities = script(port,session,"return window.cameraStreams.at(-1).getVideoTracks()[0].getCapabilities();")
+                checks.append({"check":"camera resolution and frame rate capabilities","result":{k:v for k,v in capabilities.items() if k != "deviceId"}})
+                for width,height in [(640,480),(1280,720),(1920,1080),(853,479)]:
+                    configured = configure({"width":{"exact":width},"height":{"exact":height},"frameRate":{"ideal":30}})
+                    if configured.get("state") != "configured" or configured["settings"].get("width") != width or configured["settings"].get("height") != height:
+                        raise AssertionError(f"Camera resolution switch failed for {width}x{height}: {configured}")
+                    output_frame = wait_script(port,session,"return inspectFrame();",lambda x:isinstance(x,dict) and x.get("width")==width and x.get("height")==height,15)
+                    checks.append({"check":f"actual camera output {width}x{height}","result":{"width":output_frame["width"],"height":output_frame["height"],"frameRate":configured["settings"].get("frameRate"),"opaquePixels":output_frame.get("opaquePixels")}})
+                for invalid in [{"width":{"exact":capabilities["width"]["max"]+1}}, {"frameRate":{"exact":capabilities["frameRate"]["max"]+1}}, {"width":{"min":1920,"max":640}}]:
+                    result = configure(invalid)
+                    if result.get("name") != "OverconstrainedError":
+                        raise AssertionError(f"Unsatisfiable camera constraints were accepted: {invalid}, {result}")
+                still_live = script(port,session,"return window.cameraStreams.at(-1).getVideoTracks()[0].readyState;")
+                if still_live != "live":
+                    raise AssertionError("Invalid constraints stopped the active camera")
+                checks.append({"check":"unsupported exact resolution, frame rate and contradictory range reject without stopping source","result":"passed"})
+                configured = configure({"width":{"ideal":8192},"height":{"ideal":4320},"frameRate":{"exact":15}})
+                if configured.get("state") != "configured" or configured["settings"].get("frameRate") != 15:
+                    raise AssertionError(f"Camera ideal fallback / frame rate switch failed: {configured}")
+                checks.append({"check":"unavailable ideal resolution falls back and 15fps applies","result":{k:v for k,v in configured["settings"].items() if k != "deviceId"}})
                 metadata = wait_script(port,session,"return window.cameraEvents;",lambda x:isinstance(x,list) and "loadedmetadata" in x and "loadeddata" in x,10)
                 checks.append({"check":"metadata and first-frame events", "result":metadata})
                 script(port,session,"video.pause();return true;")
@@ -252,6 +286,15 @@ def run_checks(args, profile, base):
                 if not stopped.get("tracks") or any(t["readyState"] != "ended" for t in stopped["tracks"]):
                     raise AssertionError(f"Camera tracks did not stop: {stopped}")
                 checks.append({"check":"all hardware tracks stopped", "result":stopped})
+                for index,camera in enumerate(cameras):
+                    constraints = {"deviceId":{"exact":camera["deviceId"]},"width":{"ideal":1920},"height":{"ideal":1080}}
+                    script(port,session,"startCamera("+json.dumps(constraints)+");return true;")
+                    live = wait_script(port,session,"return window.cameraResult;",lambda x:isinstance(x,dict) and x.get("state") in ("live","error"),30)
+                    if live.get("state") != "live":
+                        raise AssertionError(f"Enumerated camera {index+1} could not capture: {live}")
+                    output_frame = wait_script(port,session,"return inspectFrame();",lambda x:isinstance(x,dict) and x.get("state")=="frame",15)
+                    checks.append({"check":f"enumerated camera {index+1} actual output","result":{"width":output_frame["width"],"height":output_frame["height"],"nonBlackPixels":output_frame.get("rgbTotal",0)>0}})
+                    script(port,session,"stopCamera();return true;")
             # Separate origin has no seeded site block: success demonstrates the
             # Permissions-Policy check, rather than the remembered-denial path.
             policy_base = base.replace("127.0.0.1", "localhost")
@@ -289,6 +332,7 @@ def main():
     parser.add_argument("webdriver", nargs="?", type=Path, help="WebDriver binary for automated checks")
     parser.add_argument("--output", type=Path, help="Write a JSON acceptance record (no camera images)")
     parser.add_argument("--hardware", action="store_true", help="Explicitly request real camera capture; human must approve permission prompts")
+    parser.add_argument("--allow-site-camera", action="store_true", help="With explicit --hardware consent, remember camera permission for the disposable localhost test profile")
     parser.add_argument("--permission-timeout", type=int, default=120, help="Seconds to allow human approval in --hardware mode")
     parser.add_argument("--serve-only", action="store_true", help="Serve manual fixture until interrupted, without running WebDriver tests")
     parser.add_argument("--app", type=Path, help="With --serve-only, launch this .app bundle in a disposable profile")
@@ -298,6 +342,8 @@ def main():
         parser.error("provide WebDriver binary or --serve-only")
     if args.app and not args.serve_only:
         parser.error("--app requires --serve-only")
+    if args.allow_site_camera and not args.hardware:
+        parser.error("--allow-site-camera requires --hardware")
     if args.hardware and args.serve_only:
         parser.error("manual Start button requests camera in --serve-only; --hardware is for WebDriver")
     if not args.serve_only and args.bind != "127.0.0.1":

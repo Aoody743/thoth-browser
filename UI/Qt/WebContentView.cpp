@@ -102,10 +102,15 @@ class QtVideoCapture final : public WebView::VideoCapture {
 public:
     explicit QtVideoCapture(std::unique_ptr<Thoth::CameraCapture> camera)
         : m_camera(std::move(camera)) { }
+    virtual bool configure(String const& configuration) override
+    {
+        QString error;
+        return m_camera->start(QJsonDocument::fromJson(qstring_from_ak_string(configuration).toUtf8()).object(), error);
+    }
     virtual Gfx::ShareableBitmap frame() override
     {
         auto image = m_camera->latest_frame();
-        if (image.isNull() || image.width() > 4096 || image.height() > 4096)
+        if (image.isNull())
             return {};
         auto bitmap = Gfx::Bitmap::create_shareable(Gfx::BitmapFormat::BGRA8888, Gfx::AlphaType::Premultiplied, { image.width(), image.height() });
         if (bitmap.is_error())
@@ -159,14 +164,14 @@ WebContentView::WebContentView(QWidget* window, Optional<WebView::CanonicalTrave
         auto json = QJsonDocument(result).toJson(QJsonDocument::Compact);
         return MUST(String::from_utf8(StringView(json.constData(), json.size())));
     };
-    on_start_video_capture = [scoped_camera_id](URL::Origin const& origin, String const& device_id) -> RefPtr<WebView::VideoCapture> {
+    on_start_video_capture = [scoped_camera_id](URL::Origin const& origin, String const& device_id, String const& configuration) -> RefPtr<WebView::VideoCapture> {
         for (auto const& value : Thoth::CameraCapture::devices()) {
             auto device = value.toObject();
             if (scoped_camera_id(origin, device["id"].toString()) != qstring_from_ak_string(device_id))
                 continue;
             auto camera = std::make_unique<Thoth::CameraCapture>(device["id"].toString());
             QString error;
-            if (!camera->start(error))
+            if (!camera->start(QJsonDocument::fromJson(qstring_from_ak_string(configuration).toUtf8()).object(), error))
                 return {};
             return adopt_ref(*new QtVideoCapture(std::move(camera)));
         }

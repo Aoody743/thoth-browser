@@ -71,10 +71,14 @@ profile before a downgrade across data-schema changes.
   document/sidebar title preservation, split and workspace restoration.
 - `thoth_restore_test.py`: eight saved entries load only the current page or
   the two current split panes; sidebar metadata is retained.
+- Build and run the `TestCameraConstraints` target: native format selection,
+  exact/min/max/ideal handling, arbitrary downsampling, advanced sets and 8K modes.
 - `thoth_camera_test.py`: invalid constraints, remembered denial and response
   Permissions-Policy restrictions. Run `--hardware` separately to test real
   preview/Canvas pixels, pause, disabled-track black frames, cloned track
-  lifetime and stop. This requires explicit local camera authorization.
+  lifetime and stop, actual 480p/720p/1080p and arbitrary smaller output, live
+  constraint changes, capability reporting and unsupported constraint rejection.
+  This requires explicit local camera authorization.
 - `thoth_update_fixture.py`: the production updater in a disposable native app,
   with version 1 installed and a signed version 2 served locally. Verify the
   ready notification, Later, restart command, replacement and relaunched version.
@@ -85,3 +89,14 @@ Wikipedia, GitHub, search, form/IME entry, upload/download, audio/mute, camera,
 permission revocation and native keyboard/accessibility behavior. Login, WebRTC,
 DRM and passkeys require separate evidence. Camera preview does not establish
 support for WebRTC calls; cross-origin camera delegation remains unavailable.
+
+## Camera resolution preview: 2610.23.2
+
+The signed application passed 11 camera constraint unit tests and local hardware
+acceptance at 640×480, 1280×720, 1920×1080 and 853×479. Both enumerated local
+camera sources delivered 1920×1080. The default camera produced non-black pixels.
+15fps configuration, invalid required constraints, Canvas reads, paused preview,
+disabled tracks, clone lifetime, stopping, camera enumeration privacy and response
+Permissions-Policy checks passed. No camera images are saved by the fixture.
+The five Qt suites and the desktop navigation/download/window regression gate passed.
+Native 8K selection is covered by a synthetic format test, not 8K hardware acceptance.

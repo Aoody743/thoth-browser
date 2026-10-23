@@ -225,7 +225,8 @@ endpoint WebContentClient routed by Web::PageId page_id
     did_start_geolocation_position_watch(Web::PageId page_id, u64 request_id) =|
     did_stop_geolocation_position_watch(Web::PageId page_id, u64 request_id) =|
     [NotRouted] camera_devices(Web::PageId page_id) => (String devices)
-    [NotRouted] start_video_capture(Web::PageId page_id, String device_id) => (u64 capture_id)
+    [NotRouted] start_video_capture(Web::PageId page_id, String device_id, String configuration) => (u64 capture_id)
+    [NotRouted] configure_video_capture(Web::PageId page_id, u64 capture_id, String configuration) => (bool success)
     [NotRouted] video_capture_frame(Web::PageId page_id, u64 capture_id) => (Gfx::ShareableBitmap frame)
     stop_video_capture(Web::PageId page_id, u64 capture_id) =|
     did_request_permission(Web::PageId page_id, u64 request_id, Utf16String name) =|

@@ -253,7 +253,8 @@ private:
     virtual void did_start_geolocation_position_watch(u64 request_id) override;
     virtual void did_stop_geolocation_position_watch(u64 request_id) override;
     String camera_devices();
-    u64 start_video_capture(String device_id);
+    u64 start_video_capture(String device_id, String configuration);
+    bool configure_video_capture(u64 capture_id, String const& configuration);
     Gfx::ShareableBitmap video_capture_frame(u64 capture_id);
     virtual void stop_video_capture(u64 capture_id) override;
     Optional<URL::Origin> m_camera_grant;
