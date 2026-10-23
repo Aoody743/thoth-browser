@@ -21,3 +21,6 @@ add_executable(TestThothSidebarAccessibility TestSidebarAccessibility.cpp ../Sid
 target_link_libraries(TestThothSidebarAccessibility PRIVATE Qt6::Widgets)
 add_test(NAME ThothSidebarAccessibility COMMAND TestThothSidebarAccessibility)
 set_tests_properties(ThothSidebarAccessibility PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+add_executable(TestThothSidebarGeometry TestSidebarGeometry.cpp)
+target_link_libraries(TestThothSidebarGeometry PRIVATE Qt6::Core)
+add_test(NAME ThothSidebarGeometry COMMAND TestThothSidebarGeometry)

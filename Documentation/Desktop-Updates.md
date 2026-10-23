@@ -100,3 +100,15 @@ disabled tracks, clone lifetime, stopping, camera enumeration privacy and respon
 Permissions-Policy checks passed. No camera images are saved by the fixture.
 The five Qt suites and the desktop navigation/download/window regression gate passed.
 Native 8K selection is covered by a synthetic format test, not 8K hardware acceptance.
+
+## Close-control alignment: 2610.23.3
+
+macOS window controls now retain AppKit's standard frames. The previous observer
+moved each button after native titlebar layout, which could separate its visual
+button from hover glyph placement. Window resizing and fullscreen transitions
+now use the system layout without deferred per-button offsets.
+
+Sidebar close controls use one viewport rectangle for both painting and pointer
+hit testing. The former full-row-height strip beyond the visible button no
+longer closes a page. Geometry regression tests cover narrow, nested, scrolled
+and split rows; all six Qt suites pass.

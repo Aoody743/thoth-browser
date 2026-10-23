@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 #include "Sidebar.h"
+#include "SidebarGeometry.h"
 #include "Localization.h"
 #include "Updater.h"
 #include "SidebarAccessibility.h"
@@ -199,7 +200,7 @@ public:
         if (index.column() != 0)
             return;
         auto dark = Ladybird::ChromeStyle::is_dark(option.palette);
-        auto rect = option.rect.adjusted(-10, 1, -2, -1);
+        auto rect = sidebar_card_rect(option.rect);
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
         painter->setFont(option.font);
@@ -317,7 +318,7 @@ public:
                 draw_loading_ring(QRectF(rect), 8);
         }
         if (hovered && index.data(PAGE_ROLE).toString() != "folder") {
-            auto close_rect = QRect(rect.right() - 28, rect.center().y() - 11, 22, 22);
+            auto close_rect = sidebar_close_button_rect(option.rect);
             painter->setPen(Qt::NoPen);
             painter->setBrush(dark ? QColor("#514c5b") : QColor("#d8d3df"));
             painter->drawEllipse(close_rect);
@@ -2315,7 +2316,7 @@ bool Sidebar::eventFilter(QObject* object, QEvent* event)
         auto id = item ? item->data(0, ID_ROLE).toString() : QString {};
         if (!id.isEmpty() && item->data(0, PAGE_ROLE).toString() != "folder") {
             auto row = m_tree->visualItemRect(item);
-            if (position.x() >= row.right() - 34 && position.x() <= row.right() && position.y() >= row.top() && position.y() <= row.bottom()) {
+            if (sidebar_close_button_rect(row).contains(position)) {
                 close_item(id);
                 mouse->accept();
                 return true;
