@@ -112,3 +112,12 @@ Sidebar close controls use one viewport rectangle for both painting and pointer
 hit testing. The former full-row-height strip beyond the visible button no
 longer closes a page. Geometry regression tests cover narrow, nested, scrolled
 and split rows; all six Qt suites pass.
+
+## Sidebar column hit target: 2610.23.4
+
+The actual two-column QTreeWidget exposed a remaining offset: visualItemRect()
+spans the text and 30px audio column, while the delegate paints only column zero.
+The close hit target now uses visualRect(indexFromItem(item, 0)), shared through
+the geometry helper used by the input handler. An offscreen widget integration
+test records the real delegate rectangle and compares it to the production hit
+rectangle at three sidebar widths, reproducing the old 30px mismatch explicitly.

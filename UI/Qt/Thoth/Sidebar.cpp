@@ -2315,8 +2315,7 @@ bool Sidebar::eventFilter(QObject* object, QEvent* event)
         auto* item = m_tree->itemAt(position);
         auto id = item ? item->data(0, ID_ROLE).toString() : QString {};
         if (!id.isEmpty() && item->data(0, PAGE_ROLE).toString() != "folder") {
-            auto row = m_tree->visualItemRect(item);
-            if (sidebar_close_button_rect(row).contains(position)) {
+            if (sidebar_close_button_rect(*m_tree, *item).contains(position)) {
                 close_item(id);
                 mouse->accept();
                 return true;
