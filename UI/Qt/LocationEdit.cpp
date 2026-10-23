@@ -17,6 +17,7 @@
 #include <UI/Qt/Menu.h>
 #include <UI/Qt/StringUtils.h>
 #include <UI/Qt/Thoth/Appearance.h>
+#include <UI/Qt/Thoth/Localization.h>
 
 #include <QAction>
 #include <QApplication>
@@ -657,8 +658,8 @@ void LocationEdit::update_location_icon()
         m_leading_icon_button->setIcon(create_chrome_icon(icon, palette()));
         m_leading_icon_button->setIconSize({ 18, 18 });
         m_leading_icon_button->setFixedSize(22, 22);
-        m_leading_icon_button->setToolTip(tooltip);
-        m_leading_icon_button->setAccessibleName(tooltip);
+        m_leading_icon_button->setToolTip(Thoth::localized_text(tooltip));
+        m_leading_icon_button->setAccessibleName(Thoth::localized_text(tooltip));
         m_leading_icon_button->show();
         position_indicator(1);
         m_text_leading_margin = 22;
@@ -688,8 +689,10 @@ void LocationEdit::update_location_icon()
         auto scheme = m_url->scheme();
         if (scheme == "http"sv)
             show_not_secure_indicator();
+        else if (scheme == "https"sv)
+            show_icon(ChromeIcon::Lock, "Connection is secure");
         else
-            hide_indicator();
+            show_icon(ChromeIcon::Globe, "Page information");
         return;
     }
 

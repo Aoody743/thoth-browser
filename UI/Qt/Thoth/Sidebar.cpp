@@ -32,7 +32,6 @@
 #include <QFrame>
 #include <QGraphicsDropShadowEffect>
 #include <QGuiApplication>
-#include <QIconEngine>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QKeyEvent>
@@ -212,10 +211,7 @@ public:
                 rect.setTop(rect.top() + 10);
             }
             auto ink = dark ? QColor("#a39bad") : QColor("#8d8598");
-            painter->setPen(QPen(ink, 1.3, Qt::SolidLine, Qt::RoundCap));
-            auto center = QPoint(rect.left() + 16, rect.center().y());
-            painter->drawLine(center.x() - 4, center.y(), center.x() + 4, center.y());
-            painter->drawLine(center.x(), center.y() - 4, center.x(), center.y() + 4);
+            Ladybird::create_chrome_icon(Ladybird::ChromeIcon::NewTab, option.palette).paint(painter, QRect(rect.left() + 7, rect.center().y() - 9, 18, 18));
             painter->setPen(ink);
             painter->drawText(rect.adjusted(32, 0, -8, 0), Qt::AlignVCenter, Thoth::localized_text("New Tab"));
             painter->restore();
@@ -295,20 +291,7 @@ public:
                 auto font = option.font;
                 font.setWeight(QFont::Medium);
                 painter->setFont(font);
-                painter->setPen(QPen(dark ? QColor("#a7a1b5") : QColor("#777082"), 1.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-                auto x = rect.left() + 12.0;
-                auto y = rect.center().y();
-                QPainterPath chevron;
-                if (index.data(EXPANDED_ROLE).toBool()) {
-                    chevron.moveTo(x - 3, y - 1.5);
-                    chevron.lineTo(x, y + 1.5);
-                    chevron.lineTo(x + 3, y - 1.5);
-                } else {
-                    chevron.moveTo(x - 1.5, y - 3);
-                    chevron.lineTo(x + 1.5, y);
-                    chevron.lineTo(x - 1.5, y + 3);
-                }
-                painter->drawPath(chevron);
+                Ladybird::create_chrome_icon(index.data(EXPANDED_ROLE).toBool() ? Ladybird::ChromeIcon::ChevronDown : Ladybird::ChromeIcon::ChevronRight, option.palette).paint(painter, QRect(rect.left() + 4, rect.center().y() - 8, 16, 16));
                 text_rect.setLeft(rect.left() + 26);
             } else {
                 paint_rounded_icon(painter, index.data(Qt::DecorationRole).value<QIcon>(), QRect(rect.left() + 9, rect.center().y() - 9, 18, 18));
@@ -703,129 +686,27 @@ protected:
         painter.setBrush(QColor(accent.red(), accent.green(), accent.blue(), 18));
         painter.drawRoundedRect(bounds, 9, 9);
         if (count() == 0) {
-            QPainterPath star;
-            auto center = QPointF(bounds.center());
-            constexpr auto pi = 3.14159265358979323846;
-            for (int point = 0; point < 10; ++point) {
-                auto angle = -pi / 2.0 + point * pi / 5.0;
-                auto radius = point % 2 == 0 ? 8.0 : 3.8;
-                auto position = center + QPointF(std::cos(angle) * radius, std::sin(angle) * radius);
-                if (point == 0)
-                    star.moveTo(position);
-                else
-                    star.lineTo(position);
-            }
-            star.closeSubpath();
-            painter.setPen(Qt::NoPen);
-            painter.setBrush(accent);
-            painter.drawPath(star);
+            Ladybird::create_chrome_icon(Ladybird::ChromeIcon::StarFilled, palette()).paint(&painter, QRect(bounds.center() - QPoint(10, 10), QSize(20, 20)));
         }
     }
 
 private:
     bool m_drop_hover { false };
 };
-class WorkspaceIconEngine final : public QIconEngine {
-public:
-    WorkspaceIconEngine(QString symbol, QColor color)
-        : m_symbol(std::move(symbol))
-        , m_color(std::move(color))
-    {
-    }
-
-    QIconEngine* clone() const override
-    {
-        return new WorkspaceIconEngine(m_symbol, m_color);
-    }
-
-    QSize actualSize(QSize const& size, QIcon::Mode, QIcon::State) override
-    {
-        return size;
-    }
-
-    void paint(QPainter* painter, QRect const& rect, QIcon::Mode mode, QIcon::State) override
-    {
-        if (!painter || rect.isEmpty())
-            return;
-
-        auto color = m_color;
-        if (color.lightness() < 105)
-            color = color.lighter(155);
-        else if (color.lightness() > 220)
-            color = color.darker(155);
-        if (mode == QIcon::Disabled)
-            color.setAlpha(105);
-
-        painter->save();
-        // QIcon may render an engine into a reused pixmap. Clear the icon's
-        // transparent area first so stale pixels cannot appear as colored
-        // speckles around the workspace glyph.
-        painter->setCompositionMode(QPainter::CompositionMode_Source);
-        painter->fillRect(rect, Qt::transparent);
-        painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
-        painter->setRenderHint(QPainter::Antialiasing, true);
-        painter->translate(rect.topLeft());
-        painter->scale(rect.width() / 20.0, rect.height() / 20.0);
-        painter->setPen(QPen(color, 1.55, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter->setBrush(Qt::NoBrush);
-
-        if (m_symbol == "book") {
-            QPainterPath pages;
-            pages.moveTo(4.6, 5.3);
-            pages.cubicTo(6.8, 4.6, 8.7, 5.2, 10, 6.2);
-            pages.cubicTo(11.3, 5.2, 13.2, 4.6, 15.4, 5.3);
-            pages.lineTo(15.4, 14.5);
-            pages.cubicTo(13.2, 13.8, 11.3, 14.4, 10, 15.4);
-            pages.cubicTo(8.7, 14.4, 6.8, 13.8, 4.6, 14.5);
-            pages.closeSubpath();
-            painter->drawPath(pages);
-            painter->drawLine(QPointF(10, 6.2), QPointF(10, 15.1));
-            painter->drawLine(QPointF(6.2, 7.6), QPointF(8.1, 7.9));
-            painter->drawLine(QPointF(11.9, 7.9), QPointF(13.8, 7.6));
-        } else if (m_symbol == "diamond") {
-            QPainterPath diamond;
-            diamond.moveTo(10, 3.9);
-            diamond.lineTo(16.1, 10);
-            diamond.lineTo(10, 16.1);
-            diamond.lineTo(3.9, 10);
-            diamond.closeSubpath();
-            painter->drawPath(diamond);
-            painter->drawLine(QPointF(6.6, 6.6), QPointF(10, 16.1));
-            painter->drawLine(QPointF(13.4, 6.6), QPointF(10, 16.1));
-        } else if (m_symbol == "globe") {
-            painter->drawEllipse(QRectF(3.9, 3.9, 12.2, 12.2));
-            painter->drawEllipse(QRectF(7.2, 3.9, 5.6, 12.2));
-            painter->drawArc(QRectF(4.5, 6.5, 11, 7), 0, 180 * 16);
-            painter->drawArc(QRectF(4.5, 6.5, 11, 7), 180 * 16, 180 * 16);
-        } else {
-            painter->drawEllipse(QRectF(8.5, 8.5, 3, 3));
-            painter->save();
-            painter->translate(10, 10);
-            painter->rotate(-30);
-            painter->drawEllipse(QRectF(-7.1, -2.7, 14.2, 5.4));
-            painter->restore();
-        }
-        painter->restore();
-    }
-
-private:
-    QString m_symbol;
-    QColor m_color;
-};
-
 static QIcon workspace_icon(Workspace const& space, bool)
 {
     auto color = QColor(space.color);
     if (!color.isValid())
         color = QColor("#b9a5df");
-    QPixmap pixmap(40, 40);
-    pixmap.setDevicePixelRatio(2);
-    pixmap.fill(Qt::transparent);
-    QPainter painter(&pixmap);
-    WorkspaceIconEngine engine(space.symbol, color);
-    engine.paint(&painter, QRect(0, 0, 20, 20), QIcon::Normal, QIcon::Off);
-    painter.end();
-    return QIcon(pixmap);
+    if (color.lightness() < 105)
+        color = color.lighter(155);
+    else if (color.lightness() > 220)
+        color = color.darker(155);
+    auto name = space.symbol == "book" ? "book-open" : space.symbol == "diamond" ? "diamond" : space.symbol == "globe" ? "globe" : "orbit";
+    QIcon icon;
+    for (auto ratio : Ladybird::ICON_DEVICE_PIXEL_RATIOS)
+        icon.addPixmap(Ladybird::library_icon_pixmap(name, color, { 20, 20 }, ratio));
+    return icon;
 }
 static QIcon workspace_color_swatch(QString const& color)
 {
@@ -1484,7 +1365,7 @@ void Sidebar::rebuild()
         if (i.id == m_model.active)
             node->setSelected(true);
         if (!i.folder) {
-            auto* actions = new SidebarRowActions(m_tree, Ladybird::create_chrome_icon(Ladybird::ChromeIcon::TabClose, palette()), localized_text("Close Tab") + " · " + label(i));
+            auto* actions = new SidebarRowActions(m_tree, node, Ladybird::create_chrome_icon(Ladybird::ChromeIcon::TabClose, palette()), localized_text("Close Tab") + " · " + label(i));
             connect(actions->close_button(), &QToolButton::clicked, this, [this, id = i.id] { close_item(id); });
             m_tree->setItemWidget(node, 1, actions);
             for (auto const& pid : i.pages) {
@@ -2454,7 +2335,8 @@ void Sidebar::new_page()
     auto* input_row = new QHBoxLayout;
     input_row->setContentsMargins(10, 0, 10, 0);
     input_row->setSpacing(8);
-    auto* search_glyph = new QLabel("⌕", card);
+    auto* search_glyph = new QLabel(card);
+    search_glyph->setPixmap(Ladybird::create_chrome_icon(Ladybird::ChromeIcon::Search, palette()).pixmap(20, 20));
     search_glyph->setObjectName("ThothNewTabGlyph");
     input_row->addWidget(search_glyph);
     auto* address = new NewTabAddressEdit(card);

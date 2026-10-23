@@ -122,6 +122,10 @@ the geometry helper used by the input handler. An offscreen widget integration
 test records the real delegate rectangle and compares it to the production hit
 rectangle at three sidebar widths, reproducing the old 30px mismatch explicitly.
 
-### Sidebar close controls in 2610.23.5
+### Sidebar close controls and library icons in 2610.23.6
 
-Replace the delegate-painted hover glyph and viewport click interception with an always-visible QToolButton in the action column. The same widget now owns the close icon, pointer action, keyboard focus and accessible name. Audio controls share the action container without overlapping close; labels no longer change width on hover. Validate at three sidebar widths, with and without audio, and inspect the installed application's actual close icon before publishing.
+The unpublished 2610.23.5 diagnostic changed close visibility; it was not installed or promoted. Preserve the original hover interaction in 2610.23.6: reveal a real QToolButton when the pointer is over its whole tab row, or when that row is reached by keyboard. Hide it again when hover and keyboard focus leave. The same widget owns the icon and click target; remove the old delegate-painted glyph and viewport click interceptor. Loading/title refreshes under a stationary pointer recompute hover.
+
+Browser controls now use bundled Lucide 1.61.0 assets with ISC attribution. The central icon API covers navigation, search, HTTP/HTTPS status, close, bookmarks, downloads, volume and windows. Replace sidebar plus/chevron/star/workspace drawings and the new-tab text glyph as well, and use a shield for content blocking. Add semantic menu icons. Website favicons, existing brand artwork, layout borders, loading outlines and native macOS window controls retain their respective roles. No runtime download or SVG plugin is needed. See UI/Qt/Thoth/Icons/README.md for provenance and regeneration.
+
+Validation includes row hover enter/leave, keyboard focus, exact close-button center clicks, three sidebar widths, and audio coexistence. Inspect the installed app's visible icon before promoting an update.

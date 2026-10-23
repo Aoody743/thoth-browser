@@ -5,7 +5,8 @@
 #include <QDebug>
 #include <QHeaderView>
 #include <QMouseEvent>
-#include <QPainter>
+#include <QFileInfo>
+#include <QDir>
 #include <QTreeWidget>
 #include <cstdlib>
 
@@ -20,14 +21,8 @@ static void check(bool condition, char const* message)
 int main(int argc, char** argv)
 {
     QApplication app(argc, argv);
-    QPixmap glyph(12, 12);
-    glyph.fill(Qt::transparent);
-    {
-        QPainter painter(&glyph);
-        painter.setPen(QPen(Qt::black, 2));
-        painter.drawLine(3, 3, 9, 9);
-        painter.drawLine(3, 9, 9, 3);
-    }
+    QIcon glyph(QFileInfo(QString::fromUtf8(__FILE__)).dir().filePath("../Icons/lucide/x-regular.png"));
+    check(!glyph.isNull(), "bundled Lucide close icon must load");
     QTreeWidget tree;
     tree.setColumnCount(2);
     tree.setHeaderHidden(true);
@@ -36,7 +31,7 @@ int main(int argc, char** argv)
     tree.header()->setSectionResizeMode(1, QHeaderView::Fixed);
     auto* item = new QTreeWidgetItem(&tree, { "Page to close" });
     item->setSizeHint(0, { 0, 40 });
-    auto* actions = new Thoth::SidebarRowActions(&tree, QIcon(glyph), "Close tab");
+    auto* actions = new Thoth::SidebarRowActions(&tree, item, glyph, "Close tab");
     tree.setItemWidget(item, 1, actions);
     int closed = 0;
     QObject::connect(actions->close_button(), &QToolButton::clicked, [&] { ++closed; });
@@ -49,7 +44,17 @@ int main(int argc, char** argv)
             tree.resize(width, 240);
             app.processEvents();
             auto* button = actions->close_button();
-            check(button->isVisible(), "close control must be visible without hover");
+            tree.clearFocus();
+            button->clearFocus();
+            auto outside = tree.viewport()->rect().bottomLeft();
+            QMouseEvent leave_row(QEvent::MouseMove, outside, tree.viewport()->mapToGlobal(outside), Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+            QApplication::sendEvent(tree.viewport(), &leave_row);
+            check(!button->isVisible(), "close control must stay hidden outside the row");
+            auto row_center = tree.visualItemRect(item).center();
+            QMouseEvent hover_row(QEvent::MouseMove, row_center, tree.viewport()->mapToGlobal(row_center), Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+            QApplication::sendEvent(tree.viewport(), &hover_row);
+            app.processEvents();
+            check(button->isVisible(), "hovering the page row must reveal the real close button");
             check(button->accessibleName() == "Close tab", "close control must expose an accessible action");
             auto icon = button->icon().pixmap(12, 12).toImage();
             check(!icon.isNull() && qAlpha(icon.pixel(6, 6)) > 0, "close glyph must contain visible pixels");
@@ -65,7 +70,16 @@ int main(int argc, char** argv)
             QApplication::sendEvent(button, &press);
             QApplication::sendEvent(button, &release);
             check(closed == before + 1, "clicking the real glyph center must emit exactly one close action");
+            QApplication::sendEvent(tree.viewport(), &leave_row);
+            tree.clearFocus();
+            tree.setCurrentItem(item);
+            tree.setFocus(Qt::TabFocusReason);
+            app.processEvents();
+            check(button->isVisible(), "keyboard focus must expose the selected row close action");
+            tree.clearFocus();
+            QApplication::sendEvent(tree.viewport(), &leave_row);
+            check(!button->isVisible(), "close action must hide again after hover and focus leave");
         }
     }
-    qInfo() << "PASS: visible native close button and center click at all widths, with and without audio";
+    qInfo() << "PASS: hover-revealed Lucide close button and center click at all widths, with and without audio";
 }

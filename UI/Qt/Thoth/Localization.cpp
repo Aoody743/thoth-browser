@@ -4,6 +4,7 @@
  */
 
 #include <LibWebView/Application.h>
+#include <UI/Qt/Icon.h>
 #include <UI/Qt/Thoth/Localization.h>
 
 #include <QAbstractButton>
@@ -42,6 +43,8 @@ static QHash<QString, QString> const& simplified_chinese_translations()
         { QStringLiteral("Wait for active downloads to finish before restarting to update."), QStringLiteral("请等待正在进行的下载完成后再重启更新。") },
         { QStringLiteral("This build has no update feed. Install a release with updates configured."), QStringLiteral("此构建尚未配置更新源，请安装已配置更新源的发行版。") },
         { QStringLiteral("Automatic updates are currently available on macOS."), QStringLiteral("自动更新目前支持 macOS。") },
+        { QStringLiteral("Connection is secure"), QStringLiteral("连接已加密") },
+        { QStringLiteral("Page information"), QStringLiteral("页面信息") },
         { QStringLiteral("Mute tab"), QStringLiteral("静音此页面") },
         { QStringLiteral("Unmute tab"), QStringLiteral("取消此页面静音") },
         { QStringLiteral("Sleeping"), QStringLiteral("已休眠") },
@@ -332,6 +335,75 @@ static QString translated_property(QObject& object, char const* source_property,
 
 void localize_action(QAction& action)
 {
+    if (!action.isSeparator() && action.icon().isNull()) {
+        static QHash<QString, Ladybird::ChromeIcon> const icons {
+            { QStringLiteral("New Tab"), Ladybird::ChromeIcon::NewTab },
+            { QStringLiteral("Close"), Ladybird::ChromeIcon::Close },
+            { QStringLiteral("Close Tab"), Ladybird::ChromeIcon::Close },
+            { QStringLiteral("Close Pane"), Ladybird::ChromeIcon::Close },
+            { QStringLiteral("Close Left Pane"), Ladybird::ChromeIcon::Close },
+            { QStringLiteral("Close Right Pane"), Ladybird::ChromeIcon::Close },
+            { QStringLiteral("Close This Pane"), Ladybird::ChromeIcon::Close },
+            { QStringLiteral("Unload Page (Keep Pinned)"), Ladybird::ChromeIcon::Close },
+            { QStringLiteral("Open"), Ladybird::ChromeIcon::ExternalLink },
+            { QStringLiteral("Open File…"), Ladybird::ChromeIcon::File },
+            { QStringLiteral("New Window"), Ladybird::ChromeIcon::WindowMaximize },
+            { QStringLiteral("New Folder…"), Ladybird::ChromeIcon::FolderPlus },
+            { QStringLiteral("Move to Folder"), Ladybird::ChromeIcon::Folder },
+            { QStringLiteral("Remove Folder, Keep Pages"), Ladybird::ChromeIcon::Trash },
+            { QStringLiteral("Remove Workspace"), Ladybird::ChromeIcon::Trash },
+            { QStringLiteral("Delete"), Ladybird::ChromeIcon::Trash },
+            { QStringLiteral("Copy"), Ladybird::ChromeIcon::Copy },
+            { QStringLiteral("Copy Link"), Ladybird::ChromeIcon::Link },
+            { QStringLiteral("Copy URL"), Ladybird::ChromeIcon::Link },
+            { QStringLiteral("Paste"), Ladybird::ChromeIcon::Copy },
+            { QStringLiteral("History"), Ladybird::ChromeIcon::History },
+            { QStringLiteral("Bookmarks"), Ladybird::ChromeIcon::Book },
+            { QStringLiteral("Save Copy to Bookmarks"), Ladybird::ChromeIcon::Star },
+            { QStringLiteral("Move to Favourites"), Ladybird::ChromeIcon::Star },
+            { QStringLiteral("Pin Page"), Ladybird::ChromeIcon::Pin },
+            { QStringLiteral("Unpin to Temporary"), Ladybird::ChromeIcon::Unpin },
+            { QStringLiteral("Sleep Page"), Ladybird::ChromeIcon::Sleep },
+            { QStringLiteral("Mute tab"), Ladybird::ChromeIcon::VolumeMuted },
+            { QStringLiteral("Unmute tab"), Ladybird::ChromeIcon::Volume },
+            { QStringLiteral("Create Split View…"), Ladybird::ChromeIcon::Split },
+            { QStringLiteral("Swap Left and Right"), Ladybird::ChromeIcon::Split },
+            { QStringLiteral("Separate Pages"), Ladybird::ChromeIcon::Split },
+            { QStringLiteral("Settings"), Ladybird::ChromeIcon::Settings },
+            { QStringLiteral("Preferences…"), Ladybird::ChromeIcon::Settings },
+            { QStringLiteral("Appearance"), Ladybird::ChromeIcon::Settings },
+            { QStringLiteral("Organize Pages"), Ladybird::ChromeIcon::Folder },
+            { QStringLiteral("Workspaces"), Ladybird::ChromeIcon::Orbit },
+            { QStringLiteral("Move to Workspace"), Ladybird::ChromeIcon::Orbit },
+            { QStringLiteral("New Workspace…"), Ladybird::ChromeIcon::NewTab },
+            { QStringLiteral("Find Open Page…"), Ladybird::ChromeIcon::Search },
+            { QStringLiteral("Find Open Page"), Ladybird::ChromeIcon::Search },
+            { QStringLiteral("Find in Page…"), Ladybird::ChromeIcon::Search },
+            { QStringLiteral("Downloads"), Ladybird::ChromeIcon::Download },
+            { QStringLiteral("Updates"), Ladybird::ChromeIcon::Update },
+            { QStringLiteral("Check for Updates…"), Ladybird::ChromeIcon::Update },
+            { QStringLiteral("Automatically Check for Updates"), Ladybird::ChromeIcon::Update },
+            { QStringLiteral("Automatically Download Updates"), Ladybird::ChromeIcon::Download },
+            { QStringLiteral("Restart and Install Update"), Ladybird::ChromeIcon::Update },
+            { QStringLiteral("Reopen Closed Tab"), Ladybird::ChromeIcon::History },
+            { QStringLiteral("Back"), Ladybird::ChromeIcon::Back },
+            { QStringLiteral("Forward"), Ladybird::ChromeIcon::Forward },
+            { QStringLiteral("Reload"), Ladybird::ChromeIcon::Reload },
+            { QStringLiteral("Camera"), Ladybird::ChromeIcon::Camera },
+            { QStringLiteral("Microphone"), Ladybird::ChromeIcon::Microphone },
+            { QStringLiteral("Page information"), Ladybird::ChromeIcon::Info },
+            { QStringLiteral("Website Settings…"), Ladybird::ChromeIcon::Settings },
+            { QStringLiteral("Site Settings…"), Ladybird::ChromeIcon::Settings },
+            { QStringLiteral("Help"), Ladybird::ChromeIcon::Help },
+            { QStringLiteral("About Thoth Browser"), Ladybird::ChromeIcon::Info },
+        };
+        auto text = action.property("ThothSourceActionText").toString();
+        if (text.isEmpty())
+            text = action.text();
+        text.remove('&');
+        if (auto it = icons.constFind(text); it != icons.constEnd())
+            action.setIcon(Ladybird::create_chrome_icon(it.value(), qApp->palette()));
+    }
     action.setText(translated_property(action, "ThothSourceActionText", "ThothLocalizedActionText", action.text()));
     action.setToolTip(translated_property(action, "ThothSourceActionToolTip", "ThothLocalizedActionToolTip", action.toolTip()));
 }
