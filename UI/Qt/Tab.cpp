@@ -32,6 +32,7 @@
 #include <UI/Qt/Popover.h>
 #include <UI/Qt/StringUtils.h>
 #include <UI/Qt/Thoth/Localization.h>
+#include <UI/Qt/Thoth/NavigationButton.h>
 #include <UI/Qt/Thoth/Sidebar.h>
 #include <UI/Qt/Thoth/SitePolicyStore.h>
 #include <LibWebView/Profile.h>
@@ -281,9 +282,9 @@ private:
 
 static constexpr int TOOLBAR_BUTTON_SIZE = 34;
 
-static QToolButton* create_toolbar_button(QWidget& parent, QAction& action)
+static QToolButton* create_toolbar_button(QWidget& parent, QAction& action, bool simple_navigation = false)
 {
-    auto* button = new ToolbarButton(&parent);
+    QToolButton* button = simple_navigation ? static_cast<QToolButton*>(new Thoth::NavigationButton(&parent)) : new ToolbarButton(&parent);
     button->setDefaultAction(&action);
     button->setAutoRaise(true);
     button->setFocusPolicy(Qt::NoFocus);
@@ -299,18 +300,16 @@ static QToolButton* create_toolbar_button(QWidget& parent, QAction& action)
 
 static QToolButton* create_navigation_history_toolbar_button(QWidget& parent, QAction& action, WebContentView& view, int direction)
 {
-    auto* button = create_toolbar_button(parent, action);
+    auto* button = create_toolbar_button(parent, action, true);
     auto* menu = new QMenu(button);
     QObject::connect(menu, &QMenu::aboutToShow, button, [menu, &view, direction] {
         populate_session_history_traversal_menu(*menu, view, direction);
     });
-    button->setMenu(menu);
-    button->setPopupMode(QToolButton::DelayedPopup);
     button->setContextMenuPolicy(Qt::CustomContextMenu);
     QObject::connect(button, &QToolButton::customContextMenuRequested, button, [button, menu, &view, direction](QPoint const&) {
         populate_session_history_traversal_menu(*menu, view, direction);
         if (!menu->isEmpty())
-            button->showMenu();
+            menu->popup(button->mapToGlobal(button->rect().bottomLeft()));
     });
     return button;
 }
@@ -782,7 +781,9 @@ Tab::Tab(BrowserWindow* window, Optional<WebView::CanonicalTraversable&> travers
     navigation_button_layout->addItem(m_sidebar_toggle_navigation_spacer);
     navigation_button_layout->addWidget(create_navigation_history_toolbar_button(*navigation_button_cluster, *m_navigate_back_action, view(), -1));
     navigation_button_layout->addWidget(create_navigation_history_toolbar_button(*navigation_button_cluster, *m_navigate_forward_action, view(), 1));
-    navigation_button_layout->addWidget(create_toolbar_button(*navigation_button_cluster, *m_reload_action));
+    m_toolbar_reload_button = create_toolbar_button(*navigation_button_cluster, *m_reload_action, true);
+    static_cast<Thoth::NavigationButton*>(m_toolbar_reload_button)->set_loading_icon(create_chrome_icon(ChromeIcon::Loading, palette()));
+    navigation_button_layout->addWidget(m_toolbar_reload_button);
 
     if constexpr (use_native_macos_window_controls())
         toolbar_layout->addWidget(m_toolbar_window_controls, 0, Qt::AlignVCenter);
@@ -1391,7 +1392,7 @@ void Tab::configure_sidebar_toolbar()
     forward->setObjectName("ThothSidebarGoForward");
     forward->setAccessibleName("Go Forward");
 
-    m_sidebar_reload_button = new ToolbarButton(m_sidebar_navigation_buttons);
+    m_sidebar_reload_button = new Thoth::NavigationButton(m_sidebar_navigation_buttons);
     m_sidebar_reload_button->setObjectName("ThothSidebarReload");
     m_sidebar_reload_button->setAccessibleName("Reload");
     m_sidebar_reload_button->setToolTip("Reload current page");
@@ -1400,7 +1401,6 @@ void Tab::configure_sidebar_toolbar()
     m_sidebar_reload_button->setAutoRaise(true);
     m_sidebar_reload_button->setFocusPolicy(Qt::NoFocus);
     m_sidebar_reload_button->setCheckable(false);
-    m_sidebar_reload_button->setProperty("ThothPressOnlyFeedback", true);
     QObject::connect(m_sidebar_reload_button, &QToolButton::clicked, this, [this] {
         view().reload();
     });
@@ -1408,6 +1408,8 @@ void Tab::configure_sidebar_toolbar()
     row->addWidget(back);
     row->addWidget(forward);
     row->addWidget(m_sidebar_reload_button);
+    static_cast<Thoth::NavigationButton*>(m_sidebar_reload_button)->set_loading_icon(create_chrome_icon(ChromeIcon::Loading, palette()));
+    static_cast<Thoth::NavigationButton*>(m_sidebar_reload_button)->set_loading(m_is_loading);
     row->addStretch();
     m_downloads_button->setParent(m_sidebar_navigation_buttons);
     m_downloads_button->setObjectName("ThothSidebarDownloads");
@@ -1418,7 +1420,7 @@ void Tab::configure_sidebar_toolbar()
         button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
         button->setIconSize({ 18, 18 });
     }
-    m_sidebar_navigation_buttons->setStyleSheet("QToolButton { min-width: 40px; min-height: 40px; max-width: 40px; max-height: 40px; padding: 0; border: none; border-radius: 10px; } QToolButton::menu-indicator { image: none; } QToolButton#ThothSidebarReload:hover { background: transparent; }");
+    m_sidebar_navigation_buttons->setStyleSheet("QToolButton { min-width: 40px; min-height: 40px; max-width: 40px; max-height: 40px; padding: 0; border: none; border-radius: 10px; } QToolButton::menu-indicator { image: none; }");
 #if defined(Q_OS_WIN)
     // Keep Windows browser chrome in a single full-width top row: navigation
     // controls on the left, the address field in the middle, and window
@@ -1587,6 +1589,14 @@ void Tab::set_loading(bool is_loading)
         return;
 
     m_is_loading = is_loading;
+    if (m_toolbar_reload_button)
+        static_cast<Thoth::NavigationButton*>(m_toolbar_reload_button)->set_loading(is_loading);
+    if (m_sidebar_reload_button) {
+        static_cast<Thoth::NavigationButton*>(m_sidebar_reload_button)->set_loading(is_loading);
+        auto text = Thoth::localized_text(is_loading ? "Reloading page" : "Reload current page");
+        m_sidebar_reload_button->setToolTip(text);
+        m_sidebar_reload_button->setAccessibleName(text);
+    }
     m_loading_animation_frame = 0;
 
     if (m_is_loading)
@@ -1725,8 +1735,14 @@ void Tab::recreate_toolbar_icons()
     m_navigate_back_action->setIcon(create_chrome_icon(ChromeIcon::Back, palette()));
     m_navigate_forward_action->setIcon(create_chrome_icon(ChromeIcon::Forward, palette()));
     m_reload_action->setIcon(create_chrome_icon(ChromeIcon::Reload, palette()));
-    if (m_sidebar_reload_button)
-        m_sidebar_reload_button->setIcon(m_reload_action->icon());
+    for (auto* button : { m_sidebar_reload_button, m_toolbar_reload_button }) {
+        if (!button)
+            continue;
+        button->setIcon(m_reload_action->icon());
+        auto* navigation = static_cast<Thoth::NavigationButton*>(button);
+        navigation->set_loading_icon(create_chrome_icon(ChromeIcon::Loading, palette()));
+        navigation->set_loading(m_is_loading);
+    }
     m_downloads_button_icon = {};
     update_downloads_button();
     m_hamburger_button->setIcon(create_chrome_icon(ChromeIcon::Menu, palette()));

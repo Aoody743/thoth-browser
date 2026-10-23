@@ -22,6 +22,7 @@ enum class ChromeIcon {
     Back,
     Forward,
     Reload,
+    Loading,
     Stop,
     NewTab,
     Close,

@@ -129,3 +129,9 @@ The unpublished 2610.23.5 diagnostic changed close visibility; it was not instal
 Browser controls now use bundled Lucide 1.61.0 assets with ISC attribution. The central icon API covers navigation, search, HTTP/HTTPS status, close, bookmarks, downloads, volume and windows. Replace sidebar plus/chevron/star/workspace drawings and the new-tab text glyph as well, and use a shield for content blocking. Add semantic menu icons. Website favicons, existing brand artwork, layout borders, loading outlines and native macOS window controls retain their respective roles. No runtime download or SVG plugin is needed. See UI/Qt/Thoth/Icons/README.md for provenance and regeneration.
 
 Validation includes row hover enter/leave, keyboard focus, exact close-button center clicks, three sidebar widths, and audio coexistence. Inspect the installed app's visible icon before promoting an update.
+
+### Single-click navigation in 2610.23.7
+
+Back, forward and reload use one NavigationButton renderer instead of combining a custom circular frame with native tool-button states. Controls keep a fixed target and icon size, do not toggle or auto-repeat, and give one 200ms acknowledgement. Reload shows the bundled Lucide loading icon while the page loads, then restores reload. Hidden controls stop their animation timers. Left-button history long-press popups are removed; history remains on right click.
+
+The button test checks exactly one action per click, no action during a 750ms hold, no repeated action from loading feedback, visible acknowledgement that settles back to idle, disabled controls and stable geometry. Native acceptance uses a localhost server with request counters to verify a single reload, back and forward.

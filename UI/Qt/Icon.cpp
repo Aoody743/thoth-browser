@@ -87,6 +87,7 @@ static QString chrome_icon_name(ChromeIcon icon)
     switch (icon) {
     case ChromeIcon::Back: return QStringLiteral("arrow-left");
     case ChromeIcon::Forward: return QStringLiteral("arrow-right");
+    case ChromeIcon::Loading: return QStringLiteral("loader-circle");
     case ChromeIcon::Reload: return QStringLiteral("rotate-cw");
     case ChromeIcon::Stop: return QStringLiteral("x");
     case ChromeIcon::NewTab: return QStringLiteral("plus");

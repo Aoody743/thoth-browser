@@ -32,6 +32,7 @@ static bool is_simplified_chinese()
 static QHash<QString, QString> const& simplified_chinese_translations()
 {
     static QHash<QString, QString> const translations {
+        { QStringLiteral("Reloading page"), QStringLiteral("正在刷新页面") },
         { QStringLiteral("Updates"), QStringLiteral("更新") },
         { QStringLiteral("Check for Updates…"), QStringLiteral("检查更新…") },
         { QStringLiteral("Automatically Check for Updates"), QStringLiteral("自动检查更新") },

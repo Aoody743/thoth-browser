@@ -188,6 +188,7 @@ private:
     QSpacerItem* m_sidebar_toggle_navigation_spacer { nullptr };
     QToolButton* m_left_toggle_vertical_tabs_expanded_button { nullptr };
     QToolButton* m_right_toggle_vertical_tabs_expanded_button { nullptr };
+    QToolButton* m_toolbar_reload_button { nullptr };
     QToolButton* m_sidebar_reload_button { nullptr };
     WindowControlButton* m_minimize_window_button { nullptr };
     WindowControlButton* m_maximize_window_button { nullptr };
