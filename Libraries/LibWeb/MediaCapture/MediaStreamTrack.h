@@ -18,6 +18,7 @@
 #include <AK/Utf16String.h>
 #include <AK/Variant.h>
 #include <AK/Vector.h>
+#include <LibGfx/Bitmap.h>
 #include <LibWeb/Bindings/MediaStreamConstraints.h>
 #include <LibWeb/Bindings/MediaStreamTrack.h>
 #include <LibWeb/DOM/EventTarget.h>
@@ -113,6 +114,11 @@ public:
     // The tab's permission to capture is gone; whoever tied the track's source ends it.
     Function<void()> on_audio_capture_revoked;
 
+    // Invoked once after the last live clone releases the camera source.
+    Function<void()> on_video_capture_stopped;
+    void set_video_frame(NonnullRefPtr<Gfx::Bitmap>);
+    RefPtr<Gfx::Bitmap> video_frame() const;
+
     void stop();
     void end();
     GC::Ref<MediaStreamTrack> clone() const;
@@ -142,6 +148,18 @@ private:
     explicit MediaStreamTrack();
 
     virtual void finalize() override;
+    virtual void visit_edges(Cell::Visitor&) override;
+    void stop_video_capture();
+
+    struct VideoSource : RefCounted<VideoSource> {
+        RefPtr<Gfx::Bitmap> frame;
+        Function<void()> on_stopped;
+        size_t live_tracks { 1 };
+    };
+    RefPtr<VideoSource> m_video_source;
+    GC::Ptr<MediaStreamTrack> m_video_source_track;
+    mutable RefPtr<Gfx::Bitmap> m_black_video_frame;
+    bool m_video_source_released { false };
 
     void apply_constraints_impl(Optional<MediaTrackConstraints> constraints);
 

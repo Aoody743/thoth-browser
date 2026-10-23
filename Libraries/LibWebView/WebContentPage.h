@@ -7,6 +7,7 @@
 #pragma once
 
 #include <AK/HashTable.h>
+#include <LibWebView/VideoCapture.h>
 #include <AK/Noncopyable.h>
 #include <AK/Optional.h>
 #include <AK/RefCounted.h>
@@ -104,6 +105,7 @@ public:
     // awaiting a detached close remains open; it still coordinates its own close.
     bool is_open() const { return m_is_open; }
     void close();
+    void revoke_video_capture();
 
     void owe_reply(OwedReply);
     bool take_owed_reply(OwedReply);
@@ -250,6 +252,13 @@ private:
     virtual void did_cancel_geolocation_position_request(u64 request_id) override;
     virtual void did_start_geolocation_position_watch(u64 request_id) override;
     virtual void did_stop_geolocation_position_watch(u64 request_id) override;
+    String camera_devices();
+    u64 start_video_capture(String device_id);
+    Gfx::ShareableBitmap video_capture_frame(u64 capture_id);
+    virtual void stop_video_capture(u64 capture_id) override;
+    Optional<URL::Origin> m_camera_grant;
+    HashMap<u64, NonnullRefPtr<VideoCapture>> m_video_captures;
+    u64 m_next_video_capture_id { 0 };
     virtual void did_request_permission(u64 request_id, Utf16String name) override;
     virtual void did_request_file_picker(Web::HTML::FileFilter accepted_file_types, Web::HTML::AllowMultipleFiles allow_multiple_files) override;
     virtual void did_finish_handling_input_event(u64 event_id, Web::EventResult event_result) override;

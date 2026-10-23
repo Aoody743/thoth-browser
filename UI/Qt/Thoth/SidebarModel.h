@@ -14,6 +14,7 @@ struct SidebarPage {
     QString url;
     QString title;
     QString favicon;
+    bool sleeping { false };
 };
 struct Workspace {
     QString id;
@@ -66,6 +67,9 @@ public:
     bool close(QString const&, bool remember = true);
     bool close_page(QString const&);
     QString reopen();
+    QStringList find_pages(QString const& query) const;
+    QJsonObject export_workspaces() const;
+    bool import_workspaces(QJsonObject const&);
     QJsonObject to_json() const;
     bool load(QJsonObject const&);
     static bool save_document(QString const& path, QJsonObject const&, QString* error = nullptr);

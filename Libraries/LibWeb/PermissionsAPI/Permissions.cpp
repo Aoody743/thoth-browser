@@ -85,7 +85,11 @@ void request_permission_with_user_prompt(PermissionDescriptor const& descriptor,
     auto current_state = permission_state(descriptor, settings);
 
     // 2. If current state is not "prompt", return current state and abort these steps.
-    if (current_state != PermissionState::Prompt) {
+    // Camera grants are bound to the browser's current document/capture owner.
+    // The frontend rechecks its saved site policy after every navigation, even
+    // if the renderer's origin-wide Permissions API cache still says granted.
+    // This also makes resetting a site to Ask take effect on the next request.
+    if (current_state != PermissionState::Prompt && descriptor.name != "camera"_utf16) {
         on_decided->function()(current_state);
         return;
     }

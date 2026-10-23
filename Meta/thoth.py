@@ -20,7 +20,7 @@ from Utils.host_platform import Platform  # noqa: E402
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Thoth Browser 0.9.1 macOS developer build")
+    parser = argparse.ArgumentParser(description="Thoth Browser 0.9.2 macOS developer build")
     parser.add_argument("command", choices=["build", "run", "test"])
     parser.add_argument("--jobs", "-j", type=int, default=6)
     parser.add_argument("--no-build", action="store_true")

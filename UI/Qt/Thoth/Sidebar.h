@@ -41,6 +41,7 @@ public:
     void page_loading_changed(Ladybird::Tab*);
     void refresh();
     void choose_split();
+    void close_active_pane();
     void close_current();
     bool reopen();
     bool can_reopen() const { return !m_model.closed.isEmpty(); }
@@ -59,6 +60,15 @@ public:
     void window_closing();
     static void application_quitting(bool);
     void save();
+    void show_page_search();
+    void show_site_settings();
+    void import_bookmarks();
+    void export_workspaces();
+    void import_workspaces();
+    void sleep_other_pages();
+    bool sleep_page(QString const&);
+    void bookmark_page(QString const&);
+    void add_tools_menu(QMenu&);
 
 protected:
     bool event(QEvent*) override;

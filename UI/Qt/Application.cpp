@@ -21,6 +21,7 @@
 #include <UI/Qt/Settings.h>
 #include <UI/Qt/StringUtils.h>
 #include <UI/Qt/Thoth/Localization.h>
+#include <UI/Qt/Thoth/Updater.h>
 #include <UI/Qt/WebContentView.h>
 
 #if defined(AK_OS_MACOS)
@@ -380,6 +381,12 @@ public:
         m_debug_menu = create_application_menu(*m_application_widget, application.debug_menu());
 
         m_help_menu = new QMenu("Help", m_application_widget);
+        Thoth::add_update_menu(*m_help_menu, [] {
+            if (Application::the().file_downloader().has_active_downloads())
+                return false;
+            Thoth::Sidebar::application_quitting(true);
+            return true;
+        }, [] { Thoth::Sidebar::application_quitting(false); });
         m_help_menu->addAction(create_application_action(*m_application_widget, application.open_about_page_action(), IncludeActionIcon::No));
     }
 

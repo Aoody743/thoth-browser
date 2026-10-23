@@ -63,7 +63,7 @@ def sign_command(identity, path, entitlements=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build-root", type=Path, default=Path.home() / ".cache/thoth-browser")
-    parser.add_argument("--output", type=Path, default=SOURCE / "Build/0.9.1/Thoth Browser.app")
+    parser.add_argument("--output", type=Path, default=SOURCE / "Build/0.9.2/Thoth Browser.app")
     parser.add_argument(
         "--signing-identity",
         help="Developer ID Application identity; omit for a local ad-hoc signed package",
@@ -78,11 +78,14 @@ def main():
     if output.resolve() == source.resolve() or output.is_symlink():
         parser.error("Output must be a separate application directory")
     output = output.resolve()
+    final_output = output
     if output.exists():
         info = plistlib.loads((output / "Contents/Info.plist").read_bytes())
         if not args.replace or info.get("CFBundleIdentifier") not in EXPECTED_BUNDLE_IDENTIFIERS:
             parser.error("Output exists; use --replace only for a previous Thoth package")
-        shutil.rmtree(output)
+    output = final_output.with_name(final_output.stem + '.staging.app')
+    if output.exists():
+        parser.error(f'Staging directory already exists; inspect and remove it before retrying: {output}')
     shutil.copytree(source, output, symlinks=True,
                     ignore=lambda path, names: ["lib"] if Path(path).name == "Contents" else [])
     deploy = find_macdeployqt()
@@ -106,6 +109,12 @@ def main():
     identity = args.signing_identity or "-"
     for path in binaries:
         run(*sign_command(identity, path, entitlements_for(path, build_root, output)))
+    # Sparkle contains signed XPC services and an updater app. Seal those bundles
+    # after their executables, before sealing the enclosing framework.
+    nested_bundles = [p for p in (output / "Contents/Frameworks").rglob("*")
+                      if p.is_dir() and p.suffix in (".app", ".xpc") and not p.is_symlink()]
+    for nested in sorted(nested_bundles, key=lambda p: len(p.parts), reverse=True):
+        run(*sign_command(identity, nested))
     frameworks = sorted((output / "Contents/Frameworks").glob("*.framework"),
                        key=lambda path: len(path.parts), reverse=True)
     for framework in frameworks:
@@ -125,6 +134,18 @@ def main():
         if not re.search(r"flags=.*\(.*runtime.*\)", details):
             raise RuntimeError("The app signature is missing the hardened runtime")
     print(run(output / "Contents/MacOS/Thoth Browser", "--version").strip())
+    previous = final_output.with_name(final_output.stem + '.previous.app')
+    if final_output.exists():
+        if previous.exists():
+            parser.error(f'Previous package exists; archive it before replacing again: {previous}')
+        final_output.rename(previous)
+    try:
+        output.rename(final_output)
+    except OSError:
+        if previous.exists() and not final_output.exists():
+            previous.rename(final_output)
+        raise
+    output = final_output
     signature_kind = "Developer ID signed" if args.signing_identity else "ad-hoc signed for local use"
     print(f"Verified self-contained {signature_kind} application: {output}")
 

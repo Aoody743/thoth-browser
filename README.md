@@ -30,6 +30,12 @@ Thoth is an experimental browser for macOS, built on the
 sidebar brings workspaces and pages together in one calm, compact place so the
 web can take the space it needs.
 
+A **0.9.2 preview** adds signed automatic updates, active-page-first restoration,
+sidebar audio controls and macOS camera preview. Preview builds are listed under
+[GitHub Releases](https://github.com/Aoody743/thoth-browser/releases); existing
+0.9.1 users need one manual installation to receive future in-app updates.
+See [update and recovery instructions](Documentation/Desktop-Updates.md).
+
 ## A different way to organize the web
 
 - **Workspaces** keep separate projects and their pages together, each with its

@@ -41,6 +41,10 @@ jobs:
             Meta/thoth_smoke_test.py \
             Meta/thoth_release_check.py \
             Meta/thoth_e2e_test.py \
+            Meta/thoth_camera_test.py \
+            Meta/thoth_restore_test.py \
+            Meta/thoth_updates.py \
+            Meta/thoth_update_fixture.py \
             Meta/thoth_upstream_report.py \
             Meta/package_thoth.py \
             Meta/package-macos-app-bundle.py \

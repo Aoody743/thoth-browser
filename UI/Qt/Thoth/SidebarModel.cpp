@@ -6,12 +6,14 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QRegularExpression>
 #include <QSaveFile>
 #include <QSet>
 #include <QUuid>
+#include <QUrl>
 #include <algorithm>
 #include <cmath>
 
@@ -407,13 +409,85 @@ QString SidebarModel::reopen()
     active = restored.item(restored.active) ? restored.active : restored.items.first().id;
     return active;
 }
+QStringList SidebarModel::find_pages(QString const& query) const
+{
+    auto terms = query.simplified().split(' ', Qt::SkipEmptyParts);
+    QStringList matches;
+    for (auto const& entry : items) {
+        if (entry.folder)
+            continue;
+        QString workspace_name;
+        for (auto const& space : workspaces) {
+            if (space.id == entry.workspace)
+                workspace_name = space.name;
+        }
+        for (auto const& id : entry.pages) {
+            auto it = std::find_if(pages.cbegin(), pages.cend(), [&](auto const& p) { return p.id == id; });
+            if (it == pages.cend())
+                continue;
+            auto text = it->title + ' ' + it->url + ' ' + workspace_name + ' ' + entry.title;
+            if (std::all_of(terms.cbegin(), terms.cend(), [&](auto const& term) { return text.contains(term, Qt::CaseInsensitive); }))
+                matches.append(id);
+        }
+    }
+    return matches;
+}
+
+QJsonObject SidebarModel::export_workspaces() const
+{
+    auto window = to_json();
+    window["closed"] = QJsonArray {};
+    return { { "format", "thoth-workspaces" }, { "version", 1 }, { "window", window } };
+}
+
+bool SidebarModel::import_workspaces(QJsonObject const& document)
+{
+    if (document["format"] != "thoth-workspaces" || document["version"].toInt() != 1 || !document["window"].isObject())
+        return false;
+    SidebarModel imported;
+    if (!imported.load(document["window"].toObject()) || imported.items.size() > 10000 || imported.workspaces.size() > 1000)
+        return false;
+    for (auto const& p : imported.pages) {
+        auto url = QUrl(p.url);
+        if (!url.isValid() || !QStringList { "http", "https", "file", "about" }.contains(url.scheme().toLower()))
+            return false;
+    }
+    // Every imported identity is fresh, including when importing our own backup twice.
+    QHash<QString, QString> spaces, page_ids, item_ids;
+    for (auto const& space : imported.workspaces)
+        spaces[space.id] = new_id();
+    for (auto const& p : imported.pages)
+        page_ids[p.id] = new_id();
+    for (auto const& i : imported.items)
+        item_ids[i.id] = new_id();
+    for (auto space : imported.workspaces) {
+        space.id = spaces.value(space.id);
+        space.active = item_ids.value(space.active);
+        workspaces.append(space);
+    }
+    for (auto p : imported.pages) {
+        p.id = page_ids.value(p.id);
+        pages.append(p);
+    }
+    for (auto i : imported.items) {
+        i.id = item_ids.value(i.id);
+        i.parent = item_ids.value(i.parent);
+        i.workspace = spaces.value(i.workspace);
+        i.active = page_ids.value(i.active);
+        for (auto& id : i.pages)
+            id = page_ids.value(id);
+        items.append(i);
+    }
+    return true;
+}
+
 QJsonObject SidebarModel::to_json() const
 {
     QJsonArray page_array, item_array, closed_array, space_array;
     for (auto const& space : workspaces)
         space_array.append(QJsonObject { { "id", space.id }, { "name", space.name }, { "color", space.color }, { "symbol", space.symbol }, { "active", space.active } });
     for (auto const& p : pages)
-        page_array.append(QJsonObject { { "id", p.id }, { "url", p.url }, { "title", p.title }, { "favicon", p.favicon } });
+        page_array.append(QJsonObject { { "id", p.id }, { "url", p.url }, { "title", p.title }, { "favicon", p.favicon }, { "sleeping", p.sleeping } });
     for (auto const& i : items)
         item_array.append(QJsonObject { { "id", i.id }, { "title", i.title }, { "parent", i.parent }, { "workspace", i.workspace }, { "section", i.section }, { "folder", i.folder }, { "expanded", i.expanded }, { "pages", QJsonArray::fromStringList(i.pages) }, { "active", i.active }, { "ratio", i.ratio } });
     for (auto const& c : closed)
@@ -451,7 +525,7 @@ bool SidebarModel::load(QJsonObject const& json)
         ids.insert(id);
         if (p["favicon"].toString().size() > 128 * 1024)
             return false;
-        next.pages.append({ id, p["url"].toString(), p["title"].toString(), p["favicon"].toString() });
+        next.pages.append({ id, p["url"].toString(), p["title"].toString(), p["favicon"].toString(), p["sleeping"].toBool() });
     }
     ids.clear();
     for (auto const& value : json["items"].toArray()) {

@@ -227,6 +227,7 @@ private:
     void load_url_resource(URL::URL const&, ESCAPING Function<void(Utf16String)> failure_callback);
     void load_remote_resource(ByteRange const&);
     void load_local_resource(MediaProvider const&, ESCAPING Function<void(Utf16String)> failure_callback);
+    void update_media_stream_frame();
     bool preload_attribute_is_in_none_state() const;
     bool should_wait_for_an_implementation_defined_event_before_fetching_the_resource() const;
     void wait_for_an_implementation_defined_event_before_fetching_the_resource(u32 fetch_generation);
@@ -435,6 +436,7 @@ private:
     u32 m_current_fetch_generation { 0 };
     bool m_waiting_for_an_implementation_defined_event_to_fetch_the_resource { false };
     bool m_current_resource_selection_is_explicit { false };
+    RefPtr<Core::Timer> m_media_stream_frame_timer;
 
     OwnPtr<MediaClient::RemotePlaybackManager> m_playback_manager;
     Function<void(Utf16String)> m_playback_manager_failure_callback;

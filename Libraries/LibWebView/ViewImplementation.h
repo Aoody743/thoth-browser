@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <LibWebView/VideoCapture.h>
 #include <AK/ByteBuffer.h>
 #include <AK/Forward.h>
 #include <AK/Function.h>
@@ -504,6 +505,8 @@ public:
     Function<void(WebContentPage& requesting_page, u64 request_id)> on_cancel_geolocation_position_request;
     Function<void(WebContentPage& requesting_page, u64 request_id)> on_start_geolocation_position_watch;
     Function<void(WebContentPage& requesting_page, u64 request_id)> on_stop_geolocation_position_watch;
+    Function<String(URL::Origin const&)> on_camera_devices;
+    Function<RefPtr<VideoCapture>(URL::Origin const&, String const& device_id)> on_start_video_capture;
     Function<void(Utf16String const& name, URL::Origin const&, Function<void(bool granted)> on_decided)> on_request_permission;
     Function<void(Web::HTML::FileFilter const& accepted_file_types, Web::HTML::AllowMultipleFiles)> on_request_file_picker;
     Function<void(Gfx::IntPoint content_position, i32 minimum_width, Vector<Web::HTML::SelectItem> items)> on_request_select_dropdown;

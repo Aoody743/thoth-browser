@@ -153,6 +153,7 @@ public:
     // The user let the page at the URL capture audio. The process's AudioServer hears of the permission before this
     // returns, so a page told afterwards finds it in place.
     ErrorOr<void> grant_audio_capture(URL::URL const&);
+    void revoke_audio_capture(URL::URL const&);
     // The permission follows the origins the process's open pages show, so it goes with a navigation away.
     void update_audio_capture_permission();
     void replay_compositor_view_state_after_reconnect(Badge<Application>);
@@ -187,6 +188,9 @@ private:
     virtual Messages::WebContentClient::DidRequestStorageItemResponse did_request_storage_item(Web::PageId page_id, Web::StorageAPI::StorageEndpointType, Web::HTML::EnvironmentId environment_id, Utf16String bottle_key) override;
     virtual Messages::WebContentClient::DidRequestStorageKeysResponse did_request_storage_keys(Web::PageId page_id, Web::StorageAPI::StorageEndpointType, Web::HTML::EnvironmentId environment_id) override;
     virtual Messages::WebContentClient::DidRequestStorageUsageResponse did_request_storage_usage(Web::PageId page_id, Web::HTML::EnvironmentId environment_id) override;
+    virtual Messages::WebContentClient::CameraDevicesResponse camera_devices(Web::PageId page_id) override;
+    virtual Messages::WebContentClient::StartVideoCaptureResponse start_video_capture(Web::PageId page_id, String device_id) override;
+    virtual Messages::WebContentClient::VideoCaptureFrameResponse video_capture_frame(Web::PageId page_id, u64 capture_id) override;
     virtual Messages::WebContentClient::DidStartDownloadWithoutRequestResponse did_start_download_without_request(Web::PageId page_id, URL::URL, ByteString suggested_filename, Optional<u64> total_size) override;
     virtual Messages::WebContentClient::DidStartDownloadResponse did_start_download(Web::PageId page_id, Web::HTML::CrossProcessId navigable_id, Optional<Utf16String> navigation_id, URL::URL, ByteString suggested_filename, Optional<u64> total_size, int request_server_client_id, u64 request_server_request_id, ByteBuffer initial_data) override;
     virtual Messages::WebContentClient::DidRequestNewWebViewResponse did_request_new_web_view(Web::PageId page_id, Web::HTML::ActivateTab, Web::HTML::WebViewHints, Optional<Web::HTML::CrossProcessId> opener_navigable_id, Optional<URL::URL> opener_base_url, Utf16String target_name, Web::HTML::SandboxingFlagSet popup_sandboxing_flag_set) override;

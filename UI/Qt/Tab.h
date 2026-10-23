@@ -31,6 +31,9 @@
 #include <QPushButton>
 #include <QToolButton>
 #include <QWidget>
+#include <QSharedPointer>
+
+namespace Thoth { class SitePolicyStore; }
 
 class QTimer;
 class QColorDialog;
@@ -118,6 +121,9 @@ public:
     void update_hover_label();
     void refresh_chrome_appearance();
     void navigate_from_user_input(QString const&);
+    void show_site_settings();
+    bool can_sleep() const;
+    QString sleep_block_reason() const;
 
     void set_tab_to_activate_on_close(Tab& tab) { m_tab_to_activate_on_close = &tab; }
 
@@ -138,6 +144,7 @@ private:
     virtual void resizeEvent(QResizeEvent*) override;
     virtual void hideEvent(QHideEvent*) override;
     virtual bool event(QEvent*) override;
+    virtual bool eventFilter(QObject*, QEvent*) override;
 
     virtual void tab_settings_changed() override;
     virtual void config_variable_changed(WebView::ConfigVariableID) override;
@@ -166,6 +173,12 @@ private:
     virtual void download_removed(u64, WebView::IsPrivate) override;
 
     bool m_thoth_sidebar_toolbar { false };
+    bool m_has_user_input { false };
+    bool m_microphone_granted { false };
+    bool m_camera_granted { false };
+    unsigned m_media_permission_generation { 0 };
+    void complete_media_permission(bool camera, bool granted, Function<void(bool)>);
+    QSharedPointer<Thoth::SitePolicyStore> m_site_policies;
     QWidget* m_sidebar_navigation_buttons { nullptr };
     QWidget* m_toolbar_container { nullptr };
     QWidget* m_toolbar { nullptr };

@@ -6,6 +6,13 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#ifdef __APPLE__
+#    include <UI/Qt/Thoth/CameraCapture.h>
+#    include <QCryptographicHash>
+#    include <QJsonArray>
+#    include <QJsonDocument>
+#    include <QUuid>
+#endif
 #include <AK/Assertions.h>
 #include <AK/ByteBuffer.h>
 #include <AK/Format.h>
@@ -90,6 +97,28 @@ static QWidget* initial_web_content_view_parent([[maybe_unused]] QWidget* window
 #endif
 }
 
+#ifdef AK_OS_MACOS
+class QtVideoCapture final : public WebView::VideoCapture {
+public:
+    explicit QtVideoCapture(std::unique_ptr<Thoth::CameraCapture> camera)
+        : m_camera(std::move(camera)) { }
+    virtual Gfx::ShareableBitmap frame() override
+    {
+        auto image = m_camera->latest_frame();
+        if (image.isNull() || image.width() > 4096 || image.height() > 4096)
+            return {};
+        auto bitmap = Gfx::Bitmap::create_shareable(Gfx::BitmapFormat::BGRA8888, Gfx::AlphaType::Premultiplied, { image.width(), image.height() });
+        if (bitmap.is_error())
+            return {};
+        for (int row = 0; row < image.height(); ++row)
+            memcpy(bitmap.value()->scanline(row), image.constScanLine(row), image.width() * 4);
+        return bitmap.release_value()->to_shareable_bitmap();
+    }
+private:
+    std::unique_ptr<Thoth::CameraCapture> m_camera;
+};
+#endif
+
 WebContentView::WebContentView(QWidget* window, Optional<WebView::CanonicalTraversable&> traversable, WebContentViewInitialState initial_state)
     : WebContentViewBase(initial_web_content_view_parent(window))
     , WebView::ViewImplementation(initial_state.is_private)
@@ -108,6 +137,41 @@ WebContentView::WebContentView(QWidget* window, Optional<WebView::CanonicalTrave
     setAttribute(Qt::WA_NativeWindow);
     setAttribute(Qt::WA_OpaquePaintEvent);
     setAttribute(Qt::WA_NoSystemBackground);
+#endif
+
+#ifdef AK_OS_MACOS
+    // Per-view salt keeps native device identifiers out of web content and prevents
+    // correlating camera IDs across origins or separate private tabs.
+    auto camera_salt = QUuid::createUuid().toString().toUtf8();
+    auto scoped_camera_id = [camera_salt](URL::Origin const& origin, QString const& device_id) {
+        auto origin_string = origin.serialize();
+        auto origin_bytes = origin_string.bytes();
+        QByteArray identity(reinterpret_cast<char const*>(origin_bytes.data()), origin_bytes.size());
+        return QString::fromLatin1(QCryptographicHash::hash(camera_salt + identity + device_id.toUtf8(), QCryptographicHash::Sha256).toHex());
+    };
+    on_camera_devices = [scoped_camera_id](URL::Origin const& origin) {
+        QJsonArray result;
+        for (auto const& value : Thoth::CameraCapture::devices()) {
+            auto device = value.toObject();
+            device["id"] = scoped_camera_id(origin, device["id"].toString());
+            result.append(device);
+        }
+        auto json = QJsonDocument(result).toJson(QJsonDocument::Compact);
+        return MUST(String::from_utf8(StringView(json.constData(), json.size())));
+    };
+    on_start_video_capture = [scoped_camera_id](URL::Origin const& origin, String const& device_id) -> RefPtr<WebView::VideoCapture> {
+        for (auto const& value : Thoth::CameraCapture::devices()) {
+            auto device = value.toObject();
+            if (scoped_camera_id(origin, device["id"].toString()) != qstring_from_ak_string(device_id))
+                continue;
+            auto camera = std::make_unique<Thoth::CameraCapture>(device["id"].toString());
+            QString error;
+            if (!camera->start(error))
+                return {};
+            return adopt_ref(*new QtVideoCapture(std::move(camera)));
+        }
+        return {};
+    };
 #endif
 
     setAttribute(Qt::WA_InputMethodEnabled, true);
@@ -218,7 +282,7 @@ WebContentView::WebContentView(QWidget* window, Optional<WebView::CanonicalTrave
         if (report_focus)
             m_report_accessibility_focus_with_next_tree = false;
         QTimer::singleShot(100, this, [this, take_initial_focus, report_focus] {
-            auto const focus_now = take_initial_focus && isVisible();
+            auto const focus_now = take_initial_focus && isVisible() && hasFocus();
             if (focus_now)
                 setFocus(Qt::OtherFocusReason);
             update_accessibility_tree(this, focus_now, report_focus);
