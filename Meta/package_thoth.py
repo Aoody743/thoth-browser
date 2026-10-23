@@ -88,6 +88,7 @@ def main():
         parser.error(f'Staging directory already exists; inspect and remove it before retrying: {output}')
     shutil.copytree(source, output, symlinks=True,
                     ignore=lambda path, names: ["lib"] if Path(path).name == "Contents" else [])
+    shutil.copyfile(SOURCE / "UI/Qt/Thoth/Sparkle-LICENSE", output / "Contents/Resources/Sparkle-LICENSE")
     deploy = find_macdeployqt()
     helpers = ["-executable=" + str(p) for p in (output / "Contents/MacOS").iterdir()
                if p.is_file() and p.name != "Thoth Browser"]

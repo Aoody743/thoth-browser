@@ -7,7 +7,7 @@ build; changing the marketing version alone is not sufficient.
 macOS uses Sparkle 2.10.0. Its distribution download is pinned by SHA-256 in
 `Meta/CMake/ThothUpdater.cmake`; an existing distribution can be supplied with
 `THOTH_SPARKLE_ROOT` for offline builds. Sparkle is embedded in the app, including
-its installer and XPC services. Its upstream license remains in the framework.
+its installer and XPC services. Its upstream license is bundled as `Contents/Resources/Sparkle-LICENSE`.
 
 The Browser menu and the native Help menu expose Updates. Automatic checking
 and downloading default to enabled and remain user-configurable. Downloaded

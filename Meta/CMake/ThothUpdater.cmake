@@ -19,6 +19,8 @@ set_property(TARGET ladybird APPEND PROPERTY BUILD_RPATH "@executable_path/../Fr
 # Run before the bundle's final signing command.
 add_custom_command(TARGET ladybird POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_BUNDLE_DIR:ladybird>/Contents/Frameworks"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_BUNDLE_DIR:ladybird>/Contents/Resources"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${LADYBIRD_SOURCE_DIR}/UI/Qt/Thoth/Sparkle-LICENSE" "$<TARGET_BUNDLE_DIR:ladybird>/Contents/Resources/Sparkle-LICENSE"
     COMMAND /usr/bin/ditto "${THOTH_SPARKLE_ROOT}/Sparkle.framework" "$<TARGET_BUNDLE_DIR:ladybird>/Contents/Frameworks/Sparkle.framework"
     VERBATIM
 )
