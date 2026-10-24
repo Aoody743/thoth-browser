@@ -85,3 +85,38 @@ Windows. A portable folder can be assembled with `package_windows.ps1`.
 - CSS-animated content (for example Baidu's hot-search marquee) can leave frame trails until the next full repaint.
 - System certificate-store access can be denied in restricted service/AppContainer contexts; set `SSL_CERT_FILE` to a CA bundle there.
 
+## HTTPS trust store (0.9.2)
+
+HTTPS goes through libcurl, and on Windows there is no default OpenSSL trust
+store: `SSL_CTX_load_verify_store("org.openssl.winstore://")` usually fails, and
+`CertOpenSystemStoreW` can be denied by local policy (observed as error 5 on a
+Win10 LTSC machine). RequestServer therefore picks up a CA bundle
+automatically, in this order: `-C` from the UI process, `SSL_CERT_FILE`,
+`cacert.pem` next to RequestServer.exe, then `cacert.pem` in the executable's
+parent directory (the packaged layout). The packaged folder ships
+`cacert.pem` at its root.
+
+## Profile location (0.9.2)
+
+The default profile roots live under `%TEMP%` and `%LOCALAPPDATA%`. On machines
+where those directories are restricted for the launching process the browser
+exits with `Error 5: denied` before any window appears. The installer shortcuts
+and the portable `Thoth.bat` pass an explicit
+`--profile-path "%LOCALAPPDATA%\ThothBrowser\Default"`, and manual runs can
+always pass `--profile-path <absolute path>`.
+
+## Compositor pacing (0.9.2)
+
+`Services/Compositor/VSyncScheduler.cpp` drives frames from `DwmFlush()` on a
+dedicated thread. The previous timer-based grid landed on Windows' default
+15.6 ms timer quantum, which collapsed 60 Hz rendering to roughly half rate.
+
+## HLS playback (0.9.2)
+
+m3u8 playlists are expanded into one virtual byte stream inside
+`HTMLMediaElement` (`LibWeb`), and the bundled FFmpeg build now includes the
+h264/hevc/aac decoders and parsers plus the mpegts demuxer (see
+`Meta/CMake/vcpkg/overlay-ports/ffmpeg/portfile.cmake`). MPEG-TS reports
+buffered ranges through `MpegTSContainerNavigator` because TS builds no seek
+index.
+
