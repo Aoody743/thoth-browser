@@ -11,15 +11,15 @@ Unicode true
   !define SOURCE_DIR "..\ThothBrowser-win64"
 !endif
 !ifndef OUT_FILE
-  !define OUT_FILE "ThothBrowser-0.9.1-win64-setup.exe"
+  !define OUT_FILE "ThothBrowser-0.9.2-win64-setup.exe"
 !endif
 !ifndef ICON_FILE
   !define ICON_FILE "..\installer_icon.ico"
 !endif
 
 !define APP_NAME "Thoth Browser"
-!define APP_VERSION "0.9.1"
-!define APP_DISPLAY_VERSION "0.9.1"
+!define APP_VERSION "0.9.2"
+!define APP_DISPLAY_VERSION "0.9.2"
 !define APP_PUBLISHER "Thoth Browser contributors"
 !define APP_URL "https://github.com/Aoody743/thoth-browser"
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\ThothBrowser"
@@ -33,7 +33,7 @@ RequestExecutionLevel user
 SetCompressor /SOLID lzma
 SetCompressorDictSize 16
 
-VIProductVersion "0.9.1.0"
+VIProductVersion "0.9.2.0"
 VIAddVersionKey "ProductName" "${APP_NAME}"
 VIAddVersionKey "ProductVersion" "${APP_DISPLAY_VERSION}"
 VIAddVersionKey "FileDescription" "${APP_NAME} installer"
@@ -66,7 +66,8 @@ Section "Thoth Browser" SEC_MAIN
   File /r "${SOURCE_DIR}\*.*"
 
   CreateDirectory "$SMPROGRAMS\Thoth Browser"
-  CreateShortcut "$SMPROGRAMS\Thoth Browser\Thoth Browser.lnk" "$INSTDIR\bin\Thoth.exe"
+  ; An explicit profile avoids the default-profile lookup under %TEMP%, which some restricted Windows setups deny with error 5.
+  CreateShortcut "$SMPROGRAMS\Thoth Browser\Thoth Browser.lnk" "$INSTDIR\bin\Thoth.exe" `--profile-path "$LOCALAPPDATA\ThothBrowser\Default"`
   CreateShortcut "$SMPROGRAMS\Thoth Browser\Uninstall Thoth Browser.lnk" "$INSTDIR\Uninstall.exe"
 
   WriteRegStr HKCU "Software\ThothBrowser" "InstallDir" "$INSTDIR"
@@ -87,7 +88,7 @@ Section "Thoth Browser" SEC_MAIN
 SectionEnd
 
 Section "Desktop shortcut" SEC_DESKTOP
-  CreateShortcut "$DESKTOP\Thoth Browser.lnk" "$INSTDIR\bin\Thoth.exe"
+  CreateShortcut "$DESKTOP\Thoth Browser.lnk" "$INSTDIR\bin\Thoth.exe" `--profile-path "$LOCALAPPDATA\ThothBrowser\Default"`
 SectionEnd
 
 Section "Uninstall"
