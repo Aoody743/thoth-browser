@@ -127,56 +127,6 @@
       "platform": "windows"
     },
     {
-      "name": "qtbase",
-      "platform": "freebsd",
-      "default-features": false,
-      "features": [
-        "dbus",
-        "doubleconversion",
-        "fontconfig",
-        "freetype",
-        "gui",
-        "icu",
-        "jpeg",
-        "network",
-        "opengl",
-        "pcre2",
-        "png",
-        "thread",
-        "vulkan",
-        "widgets",
-        "xcb",
-        "xcb-xlib",
-        "xlib",
-        "xrender",
-        "zstd"
-      ]
-    },
-    {
-      "name": "qtbase",
-      "platform": "windows",
-      "default-features": false,
-      "features": [
-        "doubleconversion",
-        "freetype",
-        "gui",
-        "icu",
-        "jpeg",
-        "network",
-        "opengl",
-        "pcre2",
-        "png",
-        "thread",
-        "widgets",
-        "zstd"
-      ]
-    },
-    {
-      "name": "qtpositioning",
-      "platform": "windows | freebsd",
-      "default-features": false
-    },
-    {
       "name": "sdl3",
       "default-features": false
     },
@@ -367,18 +317,6 @@
     {
       "name": "pthread",
       "version": "3.0.0#2"
-    },
-    {
-      "name": "qtbase",
-      "version": "6.10.0#1"
-    },
-    {
-      "name": "qtpositioning",
-      "version": "6.10.0#0"
-    },
-    {
-      "name": "qtserialport",
-      "version": "6.10.0#0"
     },
     {
       "name": "sdl3",

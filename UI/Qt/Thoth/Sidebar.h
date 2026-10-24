@@ -49,6 +49,7 @@ public:
     void restore_active();
     void cycle(int direction);
     void toggle_collapsed();
+    bool is_collapsed() const { return m_model.collapsed; }
     void expand();
     void set_chrome_visible(bool);
     void set_browser_menu(QMenu&);

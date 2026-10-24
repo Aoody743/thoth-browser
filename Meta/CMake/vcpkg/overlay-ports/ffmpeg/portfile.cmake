@@ -266,9 +266,18 @@ endif()
 # Ladybird: build only the components LibMedia uses.
 if("ladybird-components" IN_LIST FEATURES)
     set(OPTIONS "${OPTIONS} --disable-everything --disable-network")
-    set(OPTIONS "${OPTIONS} --enable-decoder=vp8,vp9,libdav1d,theora,vorbis,opus,flac,mp3float,pcm_u8,pcm_s16le,pcm_s24le,pcm_s32le,pcm_f32le,pcm_alaw,pcm_mulaw")
-    set(OPTIONS "${OPTIONS} --enable-parser=vp8,vp9,av1,flac,mpegaudio")
-    set(OPTIONS "${OPTIONS} --enable-demuxer=ogg,flac,wav")
+    # NB: H.264 and AAC are what the web actually serves, and on platforms without a system
+    #     FFmpeg (Windows) this bundled build is the only decoder provider, so leaving them out
+    #     makes every H.264/AAC video fail with "Could not find a ... decoder". MPEG-TS is the
+    #     segment container used by essentially every HLS stream, so its demuxer is required too.
+    # NB: hevc is not just for H.265 playback (common in CN HLS streams) — libavcodec builds
+    #     h2645_sei.o for CONFIG_H264_SEI too, and that file references
+    #     ff_aom_uninit_film_grain_params(), which only aom_film_grain.o provides. aom_film_grain.o
+    #     is pulled in by CONFIG_HEVC_SEI/CONFIG_HEVC_DECODER, so enabling h264 without hevc fails
+    #     to link with "unresolved external symbol ff_aom_uninit_film_grain_params".
+    set(OPTIONS "${OPTIONS} --enable-decoder=vp8,vp9,libdav1d,theora,vorbis,opus,flac,mp3float,h264,hevc,aac,pcm_u8,pcm_s16le,pcm_s24le,pcm_s32le,pcm_f32le,pcm_alaw,pcm_mulaw")
+    set(OPTIONS "${OPTIONS} --enable-parser=vp8,vp9,av1,flac,mpegaudio,h264,hevc,aac")
+    set(OPTIONS "${OPTIONS} --enable-demuxer=ogg,flac,wav,mpegts")
 endif()
 
 if("swscale" IN_LIST FEATURES)

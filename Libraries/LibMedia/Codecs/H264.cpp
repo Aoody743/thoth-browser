@@ -31,6 +31,43 @@ Optional<H264::Parameters> H264::parse_codec_parameters(GenericLexer& lexer)
     };
 }
 
+// Transport streams carry H.264 as Annex B, where the sequence and picture parameter sets are in-band NAL
+// units prefixed by a start code, rather than in an avcC configuration record. ITU-T H.264 (08/2024), Annex B.
+// Returns the parameters stated by the first sequence parameter set, which is what a decoder is chosen on.
+static Optional<H264::Parameters> parse_annex_b_parameters(ReadonlyBytes data)
+{
+    // A start code is 0x00 0x00 0x01, with an optional extra 0x00 that carries no meaning.
+    auto next_start_code = [&](size_t from) {
+        for (size_t index = from; index + 3 <= data.size(); ++index) {
+            if (data[index] == 0x00 && data[index + 1] == 0x00 && data[index + 2] == 0x01)
+                return index;
+        }
+        return data.size();
+    };
+
+    size_t index = 0;
+    while (index + 4 <= data.size()) {
+        auto start_code = next_start_code(index);
+        if (start_code + 4 > data.size())
+            return {};
+
+        auto nal_start = start_code + 3;
+        auto nal_unit_type = data[nal_start] & 0x1F;
+        if (nal_unit_type == 7) { // SEQUENCE_PARAMETER_SET_NAL_UNIT_TYPE
+            // ITU-T H.264 (08/2024), 7.3.2.1.1: profile_idc, constraint_set_flags, level_idc.
+            return H264::Parameters {
+                data[nal_start + 1],
+                data[nal_start + 2],
+                data[nal_start + 3],
+            };
+        }
+
+        // Skip past this NAL unit so that a start-code-like run inside its payload is not mistaken for a boundary.
+        index = next_start_code(nal_start);
+    }
+    return {};
+}
+
 Optional<H264::Parameters> H264::parse_configuration_record(ReadonlyBytes record)
 {
     static constexpr size_t MINIMUM_RECORD_SIZE = 4;
@@ -39,7 +76,7 @@ Optional<H264::Parameters> H264::parse_configuration_record(ReadonlyBytes record
 
     // Version 1 is the only version defined, and is what distinguishes a configuration record from Annex B data.
     if (record[0] != 1)
-        return {};
+        return parse_annex_b_parameters(record);
 
     return Parameters {
         record[1],

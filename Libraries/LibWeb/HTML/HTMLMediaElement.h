@@ -242,6 +242,24 @@ private:
 
     void handle_data_request(Optional<u64> offset);
 
+    // HLS (m3u8) playlists are played by presenting the playlist as a single virtual byte stream:
+    // segments are downloaded in order and each one is placed at the offset it would occupy if the
+    // playlist were one file. See the implementation for details.
+    struct HLSData;
+    bool start_hls_resource_if_applicable(URL::URL const&);
+    void start_hls_from_loaded_playlist(ByteBuffer);
+    void fetch_hls_playlist(URL::URL const&, u32 generation, int depth);
+    void hls_playlist_loaded(ByteBuffer, URL::URL const&, u32 generation, int depth);
+    void hls_start_playback();
+    void hls_fetch_next_segment();
+    void hls_fetch_initialization_segment();
+    void hls_finish_after_last_segment();
+    void hls_refresh_live_playlist();
+    void hls_handle_data_request(Optional<u64> offset);
+    size_t hls_segment_index_for_offset(u64 offset) const;
+    void hls_fail(Utf16String message);
+    OwnPtr<HLSData> m_hls;
+
     void set_up_playback_manager_for_remote();
     void set_up_playback_manager_for_local(Function<void(Utf16String)> failure_callback);
     void set_up_playback_manager_error_handler(Function<void(Utf16String)> failure_callback);

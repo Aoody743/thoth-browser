@@ -145,6 +145,7 @@ private:
 
     void recreate_toolbar_icons();
     void update_vertical_tabs_toolbar_button_placement();
+    void update_sidebar_toggle_icon();
     void connect_hamburger_menu();
     void update_chrome_style();
     void update_tab_title();
@@ -173,6 +174,7 @@ private:
     QWidget* m_toolbar_window_controls_separator { nullptr };
     QWidget* m_toolbar_window_controls { nullptr };
     QSpacerItem* m_sidebar_toggle_navigation_spacer { nullptr };
+    QToolButton* m_sidebar_toggle_button { nullptr };
     QToolButton* m_left_toggle_vertical_tabs_expanded_button { nullptr };
     QToolButton* m_right_toggle_vertical_tabs_expanded_button { nullptr };
     QToolButton* m_sidebar_reload_button { nullptr };

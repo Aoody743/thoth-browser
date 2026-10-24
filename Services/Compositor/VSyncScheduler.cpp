@@ -20,6 +20,22 @@
 #    include <LibCore/EventLoop.h>
 #endif
 
+#if defined(AK_OS_WINDOWS)
+#    include <AK/Atomic.h>
+#    include <AK/AtomicRefCounted.h>
+#    include <AK/NonnullRefPtr.h>
+#    include <AK/RefPtr.h>
+#    include <LibCore/EventLoop.h>
+
+#    if !defined(WIN32_LEAN_AND_MEAN)
+#        define WIN32_LEAN_AND_MEAN
+#    endif
+#    if !defined(NOMINMAX)
+#        define NOMINMAX
+#    endif
+#    include <windows.h>
+#endif
+
 namespace Compositor {
 
 class TimerVSyncScheduler final : public VSyncScheduler {
@@ -342,6 +358,240 @@ OwnPtr<VSyncScheduler> create_vsync_scheduler(Optional<u64> display_id, Function
 {
     if (display_id.has_value()) {
         if (auto scheduler = CVDisplayLinkVSyncScheduler::try_create(*display_id, move(tick_callback)); scheduler)
+            return scheduler;
+    }
+
+    return make<TimerVSyncScheduler>(move(tick_callback));
+}
+
+#elif defined(AK_OS_WINDOWS)
+
+// NB: Windows has no CVDisplayLink equivalent that can be driven from an event loop, but the desktop
+//     compositor exposes the display's vertical blank through DwmFlush(). Flushing on a dedicated
+//     thread gives the phase-locked frame grid that macOS gets from CVDisplayLink, which the
+//     timer-based fallback cannot reproduce: the default Windows timer quantum is ~15.6 ms, so a
+//     60 Hz grid collapses onto a ~31 ms grid and the whole browser renders at half rate.
+
+namespace {
+
+static constexpr int dwm_flush_idle_stop_delay_ms = 250;
+static constexpr int dwm_flush_frame_interval_ms = 16;
+
+using DwmFlushProc = HRESULT(WINAPI*)();
+using TimeBeginPeriodProc = UINT(WINAPI*)(UINT);
+using TimeEndPeriodProc = UINT(WINAPI*)(UINT);
+
+struct DisplayCompositionApi {
+    DwmFlushProc flush { nullptr };
+    TimeBeginPeriodProc begin_period { nullptr };
+    TimeEndPeriodProc end_period { nullptr };
+};
+
+DisplayCompositionApi const& display_composition_api()
+{
+    // NB: The functions are resolved at runtime so that the compositor does not gain a hard link
+    //     dependency on dwmapi and winmm.
+    static auto api = [] {
+        DisplayCompositionApi result;
+        if (auto* module = LoadLibraryW(L"dwmapi.dll"))
+            result.flush = reinterpret_cast<DwmFlushProc>(GetProcAddress(module, "DwmFlush"));
+        if (auto* module = LoadLibraryW(L"winmm.dll")) {
+            result.begin_period = reinterpret_cast<TimeBeginPeriodProc>(GetProcAddress(module, "timeBeginPeriod"));
+            result.end_period = reinterpret_cast<TimeEndPeriodProc>(GetProcAddress(module, "timeEndPeriod"));
+        }
+        return result;
+    }();
+    return api;
+}
+
+class DwmFlushState final : public AtomicRefCounted<DwmFlushState> {
+public:
+    static RefPtr<DwmFlushState> create(Core::EventLoop& event_loop, Function<void(MonotonicTime)>&& tick_callback)
+    {
+        auto state = adopt_ref(*new DwmFlushState(event_loop));
+        state->tick_callback = move(tick_callback);
+        return state;
+    }
+
+    ~DwmFlushState()
+    {
+        stop_thread();
+    }
+
+    bool request_tick()
+    {
+        if (m_invalidated.load())
+            return false;
+
+        if (m_thread_running.load()) {
+            m_tick_requested.store(true);
+            return true;
+        }
+
+        // The previous thread may still be unwinding; wait for it so that two threads never drive
+        // the same state.
+        if (m_thread) {
+            WaitForSingleObject(m_thread, 100);
+            CloseHandle(m_thread);
+            m_thread = nullptr;
+        }
+
+        m_tick_requested.store(true);
+        m_thread_running.store(true);
+        m_thread = CreateThread(nullptr, 0, &DwmFlushState::thread_proc, this, 0, nullptr);
+        if (!m_thread) {
+            m_thread_running.store(false);
+            m_tick_requested.store(false);
+            return false;
+        }
+        return true;
+    }
+
+    void stop_thread()
+    {
+        m_invalidated.store(true);
+        m_tick_requested.store(false);
+        if (!m_thread)
+            return;
+
+        WaitForSingleObject(m_thread, 200);
+        CloseHandle(m_thread);
+        m_thread = nullptr;
+    }
+
+    void run();
+
+    bool is_valid() const { return !m_invalidated.load(); }
+    bool is_running() const { return m_thread_running.load(); }
+    i64 most_recent_tick_time_nanoseconds() const { return m_most_recent_tick_time_nanoseconds.load(); }
+
+    Core::EventLoop& event_loop;
+    Function<void(MonotonicTime)> tick_callback;
+
+private:
+    explicit DwmFlushState(Core::EventLoop& event_loop)
+        : event_loop(event_loop)
+    {
+    }
+
+    static DWORD WINAPI thread_proc(LPVOID context)
+    {
+        auto state = NonnullRefPtr { *static_cast<DwmFlushState*>(context) };
+        state->run();
+        state->m_thread_running.store(false);
+        return 0;
+    }
+
+    Atomic<bool> m_invalidated { false };
+    Atomic<bool> m_tick_requested { false };
+    Atomic<bool> m_thread_running { false };
+    Atomic<i64> m_most_recent_tick_time_nanoseconds { 0 };
+    HANDLE m_thread { nullptr };
+};
+
+void DwmFlushState::run()
+{
+    auto const& api = display_composition_api();
+
+    // Raise the timer resolution so that the pacing fallback below, and any LibCore timer that
+    // cooperates with this thread, land on a millisecond grid instead of a 15.6 ms one.
+    if (api.begin_period)
+        api.begin_period(1);
+
+    auto idle_deadline = MonotonicTime::now() + AK::Duration::from_milliseconds(dwm_flush_idle_stop_delay_ms);
+
+    while (!m_invalidated.load()) {
+        auto frame_time = MonotonicTime::now();
+        auto flushed = false;
+        if (api.flush && api.flush() == S_OK) {
+            auto after_flush = MonotonicTime::now();
+            // A real composition wait lasts most of a frame. Anything shorter means the compositor
+            // is not running (DWM disabled, or a session without one), in which case DwmFlush()
+            // returns immediately and this loop would otherwise spin.
+            if (after_flush - frame_time >= AK::Duration::from_milliseconds(2)) {
+                frame_time = after_flush;
+                flushed = true;
+            }
+        }
+        if (!flushed) {
+            Sleep(dwm_flush_frame_interval_ms);
+            frame_time = MonotonicTime::now();
+        }
+
+        m_most_recent_tick_time_nanoseconds.store(frame_time.nanoseconds());
+
+        if (m_tick_requested.exchange(false)) {
+            idle_deadline = MonotonicTime::now() + AK::Duration::from_milliseconds(dwm_flush_idle_stop_delay_ms);
+            // NB: Sample the frame time on this thread so deferred delivery does not shift the
+            //     frame timestamp to the Compositor event-loop wakeup time.
+            event_loop.deferred_invoke([state = NonnullRefPtr { *this }, frame_time] {
+                if (!state->is_valid())
+                    return;
+                state->tick_callback(frame_time);
+            });
+        }
+
+        if (MonotonicTime::now() > idle_deadline)
+            break;
+    }
+
+    if (api.end_period)
+        api.end_period(1);
+}
+
+}
+
+class DwmFlushVSyncScheduler final : public VSyncScheduler {
+public:
+    AK_ALLOC_WITH_KMALLOC;
+
+    static OwnPtr<DwmFlushVSyncScheduler> try_create(Function<void(MonotonicTime)>&& tick_callback)
+    {
+        auto state = DwmFlushState::create(Core::EventLoop::current(), move(tick_callback));
+        if (!state)
+            return nullptr;
+        return adopt_own(*new DwmFlushVSyncScheduler(state.release_nonnull()));
+    }
+
+    explicit DwmFlushVSyncScheduler(NonnullRefPtr<DwmFlushState> state)
+        : m_state(move(state))
+    {
+    }
+
+    virtual ~DwmFlushVSyncScheduler() override
+    {
+        m_state->stop_thread();
+    }
+
+    virtual void schedule(double) override
+    {
+        m_state->request_tick();
+    }
+
+    virtual Optional<MonotonicTime> most_recent_tick_time(MonotonicTime now, double refresh_rate) override
+    {
+        if (!m_state->is_running())
+            return {};
+
+        auto tick_time_nanoseconds = m_state->most_recent_tick_time_nanoseconds();
+        if (tick_time_nanoseconds == 0 || tick_time_nanoseconds > now.nanoseconds())
+            return {};
+
+        auto age_nanoseconds = now.nanoseconds() - tick_time_nanoseconds;
+        auto frame_interval_nanoseconds = static_cast<i64>((1'000'000'000.0 / refresh_rate) + 0.5);
+        if (age_nanoseconds >= frame_interval_nanoseconds)
+            return {};
+        return now - AK::Duration::from_nanoseconds(age_nanoseconds);
+    }
+
+private:
+    NonnullRefPtr<DwmFlushState> m_state;
+};
+
+OwnPtr<VSyncScheduler> create_vsync_scheduler(Optional<u64>, Function<void(MonotonicTime)>&& tick_callback)
+{
+    if (display_composition_api().flush) {
+        if (auto scheduler = DwmFlushVSyncScheduler::try_create(move(tick_callback)); scheduler)
             return scheduler;
     }
 

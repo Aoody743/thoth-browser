@@ -280,7 +280,14 @@ static QToolButton* create_navigation_history_toolbar_button(QWidget& parent, QA
 
 static constexpr int TOOLBAR_HORIZONTAL_MARGIN = 12;
 static constexpr int TOOLBAR_VERTICAL_MARGIN = 2;
+#if defined(Q_OS_WIN)
+// Windows draws Back/Forward/Reload at 26-28px with 2px spacing, so an 8px gap between the
+// sidebar toggle and Back reads as a single blob and clicks land on Back by accident. Keep the
+// two groups visually and physically apart, and put a divider between them.
+static constexpr int TOOLBAR_SIDEBAR_TOGGLE_NAVIGATION_GAP = 16;
+#else
 static constexpr int TOOLBAR_SIDEBAR_TOGGLE_NAVIGATION_GAP = 8;
+#endif
 static constexpr int TOOLBAR_LOCATION_EDIT_SIDE_GAP = 32;
 static constexpr int TOOLBAR_WINDOW_CONTROLS_RIGHT_MARGIN = 4;
 static constexpr int DOWNLOADS_POPOVER_WIDTH = 380;
@@ -1341,6 +1348,42 @@ void Tab::configure_sidebar_toolbar()
     // Keep Windows browser chrome in a single full-width top row: navigation
     // controls on the left, the address field in the middle, and window
     // controls (including Close) on the right.
+    //
+    // The sidebar toggle lives in that row too, but it is not part of the
+    // navigation cluster: it gets a divider and a wider gap so that reaching
+    // for it cannot hit Back, which is destructive and immediately visible.
+    m_sidebar_toggle_button = new ToolbarButton(m_sidebar_navigation_buttons);
+    m_sidebar_toggle_button->setObjectName("ThothSidebarToggle");
+    m_sidebar_toggle_button->setAccessibleName("Toggle Sidebar");
+    m_sidebar_toggle_button->setFocusPolicy(Qt::NoFocus);
+    m_sidebar_toggle_button->setAutoRaise(true);
+    m_sidebar_toggle_button->setCheckable(false);
+    m_sidebar_toggle_button->setFixedSize(40, 40);
+    m_sidebar_toggle_button->setIconSize({ 18, 18 });
+    m_sidebar_toggle_button->setProperty("ThothPressOnlyFeedback", true);
+    QObject::connect(m_sidebar_toggle_button, &QToolButton::clicked, this, [this] {
+        if (auto* sidebar = m_window ? m_window->thoth_sidebar() : nullptr) {
+            sidebar->toggle_collapsed();
+            update_sidebar_toggle_icon();
+        }
+    });
+
+    auto* sidebar_toggle_divider = new QFrame(m_sidebar_navigation_buttons);
+    sidebar_toggle_divider->setObjectName("ThothSidebarToggleDivider");
+    sidebar_toggle_divider->setFrameShape(QFrame::NoFrame);
+    sidebar_toggle_divider->setFixedSize(1, 18);
+    sidebar_toggle_divider->setStyleSheet("background: rgba(128, 128, 128, 0.35); border: none;");
+
+    row->insertWidget(0, m_sidebar_toggle_button);
+    row->insertSpacing(1, TOOLBAR_SIDEBAR_TOGGLE_NAVIGATION_GAP);
+    row->insertWidget(2, sidebar_toggle_divider);
+    row->insertSpacing(3, TOOLBAR_SIDEBAR_TOGGLE_NAVIGATION_GAP);
+    update_sidebar_toggle_icon();
+    if (m_window) {
+        if (auto* toggle_sidebar_action = m_window->findChild<QAction*>("ThothToggleSidebarAction"))
+            QObject::connect(toggle_sidebar_action, &QAction::triggered, this, [this] { update_sidebar_toggle_icon(); });
+    }
+
     m_sidebar_navigation_buttons->setFixedHeight(40);
     auto* toolbar_row = new QHBoxLayout(m_toolbar);
     toolbar_row->setContentsMargins(TOOLBAR_HORIZONTAL_MARGIN, TOOLBAR_VERTICAL_MARGIN, TOOLBAR_WINDOW_CONTROLS_RIGHT_MARGIN, TOOLBAR_VERTICAL_MARGIN);
@@ -1654,6 +1697,7 @@ void Tab::recreate_toolbar_icons()
     update_downloads_button();
     m_hamburger_button->setIcon(create_chrome_icon(ChromeIcon::Menu, palette()));
     update_window_control_icons();
+    update_sidebar_toggle_icon();
 
     if (auto* action = m_location_edit->trailing_action()) {
         auto icon = view().toggle_bookmark_action().engaged() ? ChromeIcon::StarFilled : ChromeIcon::Star;
@@ -1865,6 +1909,17 @@ void Tab::update_vertical_tabs_toolbar_button_placement()
         m_left_toggle_vertical_tabs_expanded_button->setVisible(show_left_button);
     if (m_right_toggle_vertical_tabs_expanded_button)
         m_right_toggle_vertical_tabs_expanded_button->setVisible(show_right_button);
+}
+
+void Tab::update_sidebar_toggle_icon()
+{
+    if (!m_sidebar_toggle_button)
+        return;
+
+    auto* sidebar = m_window ? m_window->thoth_sidebar() : nullptr;
+    auto collapsed = sidebar && sidebar->is_collapsed();
+    m_sidebar_toggle_button->setIcon(create_chrome_icon(collapsed ? ChromeIcon::VerticalTabBarExpand : ChromeIcon::VerticalTabBarCollapse, palette()));
+    m_sidebar_toggle_button->setToolTip(collapsed ? "Show Sidebar" : "Hide Sidebar");
 }
 
 void Tab::show_private_session_popover()

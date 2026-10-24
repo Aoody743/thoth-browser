@@ -95,8 +95,64 @@ static u32 reverse_profile_compatibility_flag_bits(u32 flags)
     return reversed;
 }
 
+// Transport streams carry H.265 as Annex B, where the sequence parameter sets are in-band NAL units prefixed by
+// a start code, rather than in an hvcC configuration record. ITU-T H.265 (07/2024), Annex B.
+// Returns the parameters stated by the first sequence parameter set, which is what a decoder is chosen on.
+static Optional<H265::Parameters> parse_annex_b_parameters(ReadonlyBytes data)
+{
+    // A start code is 0x00 0x00 0x01, with an optional extra 0x00 that carries no meaning.
+    auto next_start_code = [&](size_t from) {
+        for (size_t index = from; index + 3 <= data.size(); ++index) {
+            if (data[index] == 0x00 && data[index + 1] == 0x00 && data[index + 2] == 0x01)
+                return index;
+        }
+        return data.size();
+    };
+
+    size_t index = 0;
+    while (index + 4 <= data.size()) {
+        auto start_code = next_start_code(index);
+        if (start_code + 4 > data.size())
+            return {};
+
+        auto nal_start = start_code + 3;
+        // ITU-T H.265 (07/2024), 7.3.1.2: nal_unit_header() is two bytes, the first holding the NAL unit type.
+        auto nal_unit_type = (data[nal_start] >> 1) & 0x3F;
+        if (nal_unit_type == SEQUENCE_PARAMETER_SET_NAL_UNIT_TYPE) {
+            // ITU-T H.265 (07/2024), 7.3.2.2.1: seq_tier_based_profile() and the level that follows it.
+            static constexpr size_t SPS_BYTES_AFTER_NAL_HEADER = 12;
+            if (nal_start + NAL_UNIT_HEADER_SIZE + SPS_BYTES_AFTER_NAL_HEADER > data.size())
+                return {};
+
+            auto fields = nal_start + NAL_UNIT_HEADER_SIZE;
+            H265::Parameters parameters {};
+            parameters.profile_space = (data[fields] >> 6) & 0x3;
+            parameters.tier_flag = (data[fields] >> 5) & 0x1;
+            parameters.profile_idc = data[fields] & 0x1F;
+            parameters.profile_compatibility_flags = reverse_profile_compatibility_flag_bits(
+                (static_cast<u32>(data[fields + 1]) << 24) | (static_cast<u32>(data[fields + 2]) << 16)
+                | (static_cast<u32>(data[fields + 3]) << 8) | static_cast<u32>(data[fields + 4]));
+            for (size_t flag = 0; flag < parameters.constraint_indicator_flags.size(); ++flag)
+                parameters.constraint_indicator_flags[flag] = data[fields + 5 + flag];
+            parameters.level_idc = data[fields + 11];
+            return parameters;
+        }
+
+        // Skip past this NAL unit so that a start-code-like run inside its payload is not mistaken for a boundary.
+        index = next_start_code(nal_start);
+    }
+    return {};
+}
+
 Optional<H265::Parameters> H265::parse_configuration_record(ReadonlyBytes record)
 {
+    // Version 1 is the only version defined, and is what distinguishes a configuration record from Annex B data.
+    // An Annex B stream starts with a start code, so its first byte is zero rather than one.
+    if (record.is_empty())
+        return {};
+    if (record[0] != 1)
+        return parse_annex_b_parameters(record);
+
     BitReader reader { record };
 
     auto version = reader.read_bits<u8>(8);

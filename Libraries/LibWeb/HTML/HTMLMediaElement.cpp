@@ -27,6 +27,7 @@
 #include <LibWeb/Fetch/Fetching/Fetching.h>
 #include <LibWeb/Fetch/Infrastructure/FetchAlgorithms.h>
 #include <LibWeb/Fetch/Infrastructure/FetchController.h>
+#include <LibWeb/Fetch/Infrastructure/HTTP/MIME.h>
 #include <LibWeb/Fetch/Infrastructure/HTTP/Requests.h>
 #include <LibWeb/Fetch/Infrastructure/HTTP/Responses.h>
 #include <LibWeb/FileAPI/BlobURLStore.h>
@@ -385,6 +386,7 @@ void HTMLMediaElement::cancel_the_fetching_process()
     m_waiting_for_an_implementation_defined_event_to_fetch_the_resource = false;
     if (m_remote_fetch_data && m_remote_fetch_data->stream)
         m_remote_fetch_data->stream->close();
+    m_hls.clear();
     m_remote_fetch_data.clear();
 }
 
@@ -1331,6 +1333,11 @@ void HTMLMediaElement::load_url_resource(URL::URL const& url_record, Function<vo
     }));
     m_remote_fetch_data->failure_callback = move(failure_callback);
 
+    // HLS playlists are not a container the demuxers know, so they are expanded into one virtual
+    // byte stream instead of being fetched as a single resource.
+    if (start_hls_resource_if_applicable(url_record))
+        return;
+
     load_remote_resource(EntireResource {});
 }
 
@@ -1444,6 +1451,28 @@ void HTMLMediaElement::load_remote_resource(ByteRange const& byte_range)
     }
 }
 
+// An HLS playlist is a text document, not a media container, so no demuxer can make sense of it.
+// URLs are not a reliable signal (plenty of HLS endpoints carry no .m3u8 suffix and are served as
+// "application/vnd.apple.mpegurl"), so the first bytes of the resource are inspected instead.
+static bool hls_data_looks_like_playlist(ByteBuffer const& data)
+{
+    auto text = StringView { data.data(), min<size_t>(data.size(), 32) };
+    if (text.starts_with("\xEF\xBB\xBF"sv))
+        text = text.substring_view(3);
+    return text.starts_with("#EXTM3U"sv);
+}
+
+// The media types RFC 8216 and the various HLS muxers in the wild use for a playlist.
+static bool hls_mime_type_is_playlist(StringView essence)
+{
+    return essence.is_one_of(
+        "application/vnd.apple.mpegurl"sv,
+        "application/x-mpegurl"sv,
+        "application/mpegurl"sv,
+        "audio/mpegurl"sv,
+        "audio/x-mpegurl"sv);
+}
+
 void HTMLMediaElement::run_remote_mode_resource_fetch_steps(ByteRange byte_range, u32 fetch_generation)
 {
     auto& realm = HTML::relevant_realm(*this);
@@ -1503,6 +1532,35 @@ void HTMLMediaElement::run_remote_mode_resource_fetch_steps(ByteRange byte_range
         //        https://github.com/whatwg/html/issues/9355
         response = response->unsafe_response();
 
+        // A playlist is not a byte stream: it is a text document that points at other resources, and
+        // handing it to a demuxer only ever produces "Could not find a demuxer for stream". Recognising
+        // it from the response's media type switches to segment fetching before a single playlist byte
+        // reaches the media stream. This has to happen here rather than by sniffing the body, because
+        // a small response like a playlist can be complete before the first body callback runs, and by
+        // then the playback manager has already tried to demux an empty stream and given up.
+        if (!self->m_hls && fetch_generation == self->m_current_fetch_generation) {
+            auto mime_type = Fetch::Infrastructure::extract_mime_type(response->header_list());
+            if (mime_type.has_value() && hls_mime_type_is_playlist(mime_type->essence())) {
+                auto& realm = HTML::relevant_realm(*self);
+                auto weak_element = GC::Weak(*self);
+                auto read_body = GC::create_function(self->heap(), [weak_element, fetch_generation](ByteBuffer data) {
+                    auto self = weak_element.ptr();
+                    if (!self || fetch_generation != self->m_current_fetch_generation)
+                        return;
+                    self->start_hls_from_loaded_playlist(move(data));
+                });
+                auto read_body_error = GC::create_function(self->heap(), [weak_element, fetch_generation](JS::Value) {
+                    auto self = weak_element.ptr();
+                    if (!self || fetch_generation != self->m_current_fetch_generation)
+                        return;
+                    self->hls_fail(u"The HLS playlist could not be read"_utf16);
+                });
+                VERIFY(response->body());
+                response->body()->fully_read(realm, read_body, read_body_error, GC::Ref { realm.global_object() });
+                return;
+            }
+        }
+
         // 1. Let global be the media element's node document's relevant global object.
         auto& global = HTML::relevant_realm(*self).global_object();
 
@@ -1542,6 +1600,14 @@ void HTMLMediaElement::run_remote_mode_resource_fetch_steps(ByteRange byte_range
             if (fetch_generation != weak_self->m_current_fetch_generation)
                 return;
             auto& fetch_data = weak_self->m_remote_fetch_data;
+
+            // An HLS playlist that the URL did not announce is discovered here, on its first bytes.
+            // Nothing has been written to the stream yet, so the segments it points at can start at
+            // offset 0 and the byte-stream fetch is replaced by the segment pipeline.
+            if (fetch_data->offset == 0 && !weak_self->m_hls && hls_data_looks_like_playlist(media_data)) {
+                weak_self->start_hls_from_loaded_playlist(move(media_data));
+                return;
+            }
 
             // 6. Update the media data with the contents of response's unsafe response obtained in this fashion. response can be CORS-same-origin or
             //    CORS-cross-origin; this affects whether subtitles referenced in the media data are exposed in the API and, for video elements, whether
@@ -1787,6 +1853,11 @@ void HTMLMediaElement::handle_data_request(Optional<u64> offset)
     if (m_error)
         return;
 
+    if (m_hls) {
+        hls_handle_data_request(offset);
+        return;
+    }
+
     auto& fetch_controller = m_remote_fetch_data->fetch_controller;
 
     if (!offset.has_value()) {
@@ -1809,6 +1880,607 @@ void HTMLMediaElement::handle_data_request(Optional<u64> offset)
     }
 
     load_remote_resource(UntilEnd { *offset });
+}
+
+// MARK: - HLS (m3u8) playback
+//
+// The media pipeline pulls bytes at explicit offsets out of one resource, so an HLS playlist is
+// presented as a single virtual byte stream: segments are downloaded in order and every segment is
+// placed at the offset it would occupy if the playlist were one long file. Playback therefore needs
+// no special support from the demuxer, and a seek works by mapping the requested offset back to the
+// segment that covers it, downloading that segment, and placing its bytes at the requested offset.
+
+struct HTMLMediaElement::HLSData {
+    AK_ALLOC_WITH_KMALLOC;
+
+    struct Segment {
+        URL::URL url;
+        double duration { 0 };
+        Optional<u64> range_start;
+        Optional<u64> range_length;
+        u64 virtual_start { 0 };
+        u64 size { 0 };
+    };
+
+    Vector<Segment> segments;
+    Optional<URL::URL> initialization_segment_url;
+    bool initialization_segment_fetched { false };
+    bool playlist_loaded { false };
+    bool is_live { false };
+    bool fetching { false };
+    bool finished { false };
+    bool waiting_for_more_segments { false };
+    size_t next_index { 0 };
+    u64 virtual_offset { 0 };
+    double total_duration { 0 };
+    double target_duration { 2.0 };
+    double bytes_per_second { 0 };
+    u32 generation { 0 };
+    u32 request_token { 0 };
+    GC::Weak<Fetch::Infrastructure::FetchController> fetch_controller;
+};
+
+static bool hls_url_has_playlist_extension(URL::URL const& url)
+{
+    auto path = url.serialize_path();
+    return path.ends_with(".m3u8"sv, CaseSensitivity::CaseInsensitive)
+        || path.ends_with(".m3u"sv, CaseSensitivity::CaseInsensitive);
+}
+
+// Extracts the value of KEY=VALUE or KEY="VALUE" from an EXT-X tag's attribute list.
+static Optional<StringView> hls_attribute(StringView line, StringView key)
+{
+    size_t search_from = 0;
+    while (true) {
+        auto maybe_index = line.find(key, search_from);
+        if (!maybe_index.has_value())
+            return {};
+        auto index = *maybe_index;
+        auto is_attribute_start = index == 0 || line[index - 1] == ',' || line[index - 1] == ':';
+        auto remainder = line.substring_view(index + key.length());
+        if (is_attribute_start && remainder.starts_with('=')) {
+            auto value = remainder.substring_view(1);
+            if (value.starts_with('"')) {
+                auto maybe_closing_quote = value.find('"', 1);
+                if (!maybe_closing_quote.has_value())
+                    return {};
+                return value.substring_view(1, *maybe_closing_quote - 1);
+            }
+            auto maybe_comma = value.find(',');
+            return maybe_comma.has_value() ? value.substring_view(0, *maybe_comma) : value;
+        }
+        search_from = index + key.length();
+    }
+}
+
+static Optional<u64> hls_parse_u64(StringView value)
+{
+    auto number = value.to_number<u64>(TrimWhitespace::Yes);
+    if (!number.has_value())
+        return {};
+    return number;
+}
+
+static Optional<double> hls_parse_seconds(StringView value)
+{
+    auto number = value.to_number<double>(TrimWhitespace::Yes);
+    if (!number.has_value())
+        return {};
+    return number;
+}
+
+bool HTMLMediaElement::start_hls_resource_if_applicable(URL::URL const& url_record)
+{
+    if (!hls_url_has_playlist_extension(url_record))
+        return false;
+
+    m_hls = make<HLSData>();
+    auto generation = ++m_current_fetch_generation;
+    m_hls->generation = generation;
+
+    // The pipeline has to exist before the playlist arrives, because the media process starts asking
+    // for bytes as soon as it is attached. Requests that arrive early are simply ignored; playback
+    // starts as soon as the first segment is downloaded.
+    if (!m_playback_manager)
+        set_up_playback_manager_for_remote();
+
+    fetch_hls_playlist(url_record, generation, 0);
+    return true;
+}
+
+void HTMLMediaElement::start_hls_from_loaded_playlist(ByteBuffer data)
+{
+    if (!m_remote_fetch_data || m_hls)
+        return;
+
+    auto url_record = m_remote_fetch_data->url_record;
+    // Bumping the generation retires the byte-stream fetch: its remaining callbacks compare against
+    // this value and return, so no further playlist bytes reach the stream and it is never closed by
+    // the end-of-media steps. The fetch itself is left alone deliberately; aborting a fetch from
+    // inside its own body callback is not worth the risk for a response this small.
+    auto generation = ++m_current_fetch_generation;
+
+    // The playlist itself was never written to the stream, so the segments start at offset 0.
+    m_remote_fetch_data->offset = 0;
+
+    m_hls = make<HLSData>();
+    m_hls->generation = generation;
+
+    if (!m_playback_manager)
+        set_up_playback_manager_for_remote();
+
+    hls_playlist_loaded(move(data), url_record, generation, 0);
+}
+
+void HTMLMediaElement::fetch_hls_playlist(URL::URL const& url, u32 generation, int depth)
+{
+    if (depth > 4) {
+        hls_fail(u"HLS playlist nesting is too deep"_utf16);
+        return;
+    }
+
+    auto& realm = HTML::relevant_realm(*this);
+    auto request = create_potential_CORS_request(url, Fetch::Infrastructure::Request::Destination::Video, m_crossorigin);
+    request->set_client(&document().relevant_settings_object());
+    request->set_initiator_type(Fetch::Infrastructure::Request::InitiatorType::Video);
+
+    Fetch::Infrastructure::FetchAlgorithms::Input input {};
+
+    input.process_response = [weak_self = GC::Weak(*this), url, generation, depth](GC::Ref<Fetch::Infrastructure::Response> response) {
+        auto self = weak_self.ptr();
+        if (!self || !self->m_hls || self->m_hls->generation != generation)
+            return;
+
+        response = response->unsafe_response();
+        if (response->is_network_error()) {
+            self->hls_fail(u"The HLS playlist could not be loaded"_utf16);
+            return;
+        }
+
+        auto& realm = HTML::relevant_realm(*self);
+        auto process_body = GC::create_function(self->heap(), [weak_self, url, generation, depth](ByteBuffer data) {
+            auto self = weak_self.ptr();
+            if (!self || !self->m_hls || self->m_hls->generation != generation)
+                return;
+            self->hls_playlist_loaded(move(data), url, generation, depth);
+        });
+        auto process_body_error = GC::create_function(self->heap(), [weak_self, generation](JS::Value) {
+            auto self = weak_self.ptr();
+            if (!self || !self->m_hls || self->m_hls->generation != generation)
+                return;
+            self->hls_fail(u"The HLS playlist could not be read"_utf16);
+        });
+
+        VERIFY(response->body());
+        response->body()->fully_read(realm, process_body, process_body_error, GC::Ref { realm.global_object() });
+    };
+
+    m_hls->fetch_controller = Fetch::Fetching::fetch(realm, request, Fetch::Infrastructure::FetchAlgorithms::create(move(input)));
+}
+
+void HTMLMediaElement::hls_playlist_loaded(ByteBuffer data, URL::URL const& playlist_url, u32 generation, int depth)
+{
+    if (!m_hls || m_hls->generation != generation)
+        return;
+
+    auto text = StringView { data.data(), data.size() };
+    // A UTF-8 BOM is legal at the start of a playlist.
+    if (text.starts_with("\xEF\xBB\xBF"sv))
+        text = text.substring_view(3);
+
+    // A master playlist points at one or more variant playlists. Pick the highest bandwidth variant:
+    // there is no adaptive switching yet, but the highest quality variant is the one a viewer expects
+    // when they pick a stream.
+    Optional<URL::URL> best_variant;
+    u64 best_bandwidth = 0;
+    bool has_variants = false;
+    {
+        Optional<u64> pending_bandwidth;
+        for (auto raw_line : text.split_view('\n')) {
+            auto line = raw_line.trim_whitespace();
+            if (line.is_empty())
+                continue;
+            if (line.starts_with("#EXT-X-STREAM-INF:"sv)) {
+                has_variants = true;
+                auto bandwidth = hls_attribute(line, "BANDWIDTH"sv);
+                pending_bandwidth = bandwidth.has_value() ? hls_parse_u64(*bandwidth) : Optional<u64> {};
+                continue;
+            }
+            if (line.starts_with('#'))
+                continue;
+            if (pending_bandwidth.has_value()) {
+                if (auto resolved = playlist_url.complete_url(line); resolved.has_value()) {
+                    if (*pending_bandwidth >= best_bandwidth) {
+                        best_bandwidth = *pending_bandwidth;
+                        best_variant = *resolved;
+                    }
+                }
+                pending_bandwidth.clear();
+            }
+        }
+    }
+
+    if (has_variants) {
+        if (!best_variant.has_value()) {
+            hls_fail(u"The HLS master playlist has no playable variant"_utf16);
+            return;
+        }
+        fetch_hls_playlist(*best_variant, generation, depth + 1);
+        return;
+    }
+
+    // Media playlist.
+    Vector<HLSData::Segment> parsed_segments;
+    Optional<URL::URL> initialization_segment_url;
+    Optional<double> pending_duration;
+    Optional<u64> pending_range_length;
+    Optional<u64> pending_range_offset;
+    u64 last_range_end = 0;
+    bool is_live = true;
+    double target_duration = 2.0;
+    double total_duration = 0;
+
+    for (auto raw_line : text.split_view('\n')) {
+        auto line = raw_line.trim_whitespace();
+        if (line.is_empty())
+            continue;
+
+        if (line.starts_with("#EXTINF:"sv)) {
+            auto value = line.substring_view("#EXTINF:"sv.length());
+            auto comma = value.find(',');
+            auto duration_text = comma.has_value() ? value.substring_view(0, *comma) : value;
+            pending_duration = hls_parse_seconds(duration_text);
+            continue;
+        }
+        if (line.starts_with("#EXT-X-TARGETDURATION:"sv)) {
+            if (auto parsed = hls_parse_seconds(line.substring_view("#EXT-X-TARGETDURATION:"sv.length())); parsed.has_value())
+                target_duration = *parsed;
+            continue;
+        }
+        if (line.starts_with("#EXT-X-BYTERANGE:"sv)) {
+            auto value = line.substring_view("#EXT-X-BYTERANGE:"sv.length());
+            auto at = value.find('@');
+            auto length_text = at.has_value() ? value.substring_view(0, *at) : value;
+            pending_range_length = hls_parse_u64(length_text);
+            pending_range_offset = at.has_value() ? hls_parse_u64(value.substring_view(*at + 1)) : Optional<u64> {};
+            continue;
+        }
+        if (line.starts_with("#EXT-X-MAP:"sv)) {
+            if (auto uri = hls_attribute(line, "URI"sv); uri.has_value()) {
+                if (auto resolved = playlist_url.complete_url(*uri); resolved.has_value())
+                    initialization_segment_url = *resolved;
+            }
+            continue;
+        }
+        if (line.starts_with("#EXT-X-KEY:"sv)) {
+            auto method = hls_attribute(line, "METHOD"sv);
+            if (method.has_value() && !method->equals_ignoring_ascii_case("NONE"sv)) {
+                hls_fail(u"Encrypted HLS streams are not supported yet"_utf16);
+                return;
+            }
+            continue;
+        }
+        if (line.starts_with("#EXT-X-ENDLIST"sv)) {
+            is_live = false;
+            continue;
+        }
+        if (line.starts_with("#EXT-X-DISCONTINUITY"sv))
+            continue;
+        if (line.starts_with('#'))
+            continue;
+
+        auto resolved = playlist_url.complete_url(line);
+        if (!resolved.has_value())
+            continue;
+
+        HLSData::Segment segment;
+        segment.url = *resolved;
+        segment.duration = pending_duration.value_or(target_duration);
+        if (pending_range_length.has_value()) {
+            segment.range_length = *pending_range_length;
+            segment.range_start = pending_range_offset.has_value() ? *pending_range_offset : last_range_end;
+            last_range_end = *segment.range_start + *pending_range_length;
+        }
+        total_duration += segment.duration;
+        parsed_segments.append(move(segment));
+        pending_duration.clear();
+        pending_range_length.clear();
+        pending_range_offset.clear();
+    }
+
+    if (parsed_segments.is_empty()) {
+        hls_fail(u"The HLS playlist has no media segments"_utf16);
+        return;
+    }
+
+    m_hls->target_duration = target_duration;
+    m_hls->is_live = is_live;
+
+    // Refreshing a live playlist only appends segments that are not known yet.
+    if (m_hls->playlist_loaded) {
+        size_t added = 0;
+        for (auto& segment : parsed_segments) {
+            auto known = m_hls->segments.find_if([&](auto const& existing) { return existing.url == segment.url; });
+            if (known != m_hls->segments.end())
+                continue;
+            segment.virtual_start = m_hls->virtual_offset;
+            m_hls->segments.append(move(segment));
+            ++added;
+        }
+        m_hls->waiting_for_more_segments = false;
+        if (added == 0) {
+            m_hls->waiting_for_more_segments = true;
+            return;
+        }
+        hls_fetch_next_segment();
+        return;
+    }
+
+    m_hls->segments = move(parsed_segments);
+    m_hls->total_duration = total_duration;
+    m_hls->playlist_loaded = true;
+    if (initialization_segment_url.has_value())
+        m_hls->initialization_segment_url = *initialization_segment_url;
+
+    hls_start_playback();
+}
+
+void HTMLMediaElement::hls_start_playback()
+{
+    if (!m_hls || !m_hls->playlist_loaded)
+        return;
+
+    // Fragmented-MP4 playlists carry an initialization segment that has to precede every media
+    // segment in the byte stream, otherwise the demuxer has no sample description to work with.
+    if (m_hls->initialization_segment_url.has_value() && !m_hls->initialization_segment_fetched) {
+        hls_fetch_initialization_segment();
+        return;
+    }
+
+    hls_fetch_next_segment();
+}
+
+void HTMLMediaElement::hls_fetch_initialization_segment()
+{
+    if (!m_hls || !m_hls->initialization_segment_url.has_value())
+        return;
+
+    auto generation = m_hls->generation;
+    auto token = ++m_hls->request_token;
+    auto url = *m_hls->initialization_segment_url;
+    m_hls->fetching = true;
+
+    auto& realm = HTML::relevant_realm(*this);
+    auto request = create_potential_CORS_request(url, Fetch::Infrastructure::Request::Destination::Video, m_crossorigin);
+    request->set_client(&document().relevant_settings_object());
+
+    Fetch::Infrastructure::FetchAlgorithms::Input input {};
+    input.process_response = [weak_self = GC::Weak(*this), generation, token](GC::Ref<Fetch::Infrastructure::Response> response) {
+        auto self = weak_self.ptr();
+        if (!self || !self->m_hls || self->m_hls->generation != generation || self->m_hls->request_token != token)
+            return;
+
+        response = response->unsafe_response();
+        if (response->is_network_error()) {
+            self->hls_fail(u"The HLS initialization segment could not be loaded"_utf16);
+            return;
+        }
+
+        auto& realm = HTML::relevant_realm(*self);
+        auto process_body = GC::create_function(self->heap(), [weak_self, generation, token](ByteBuffer data) {
+            auto self = weak_self.ptr();
+            if (!self || !self->m_hls || self->m_hls->generation != generation || self->m_hls->request_token != token)
+                return;
+            self->m_hls->fetching = false;
+            self->m_hls->initialization_segment_fetched = true;
+            self->m_remote_fetch_data->stream->add_chunk_at(self->m_hls->virtual_offset, data.bytes());
+            self->m_hls->virtual_offset += data.size();
+            self->hls_fetch_next_segment();
+        });
+        auto process_body_error = GC::create_function(self->heap(), [weak_self, generation, token](JS::Value) {
+            auto self = weak_self.ptr();
+            if (!self || !self->m_hls || self->m_hls->generation != generation || self->m_hls->request_token != token)
+                return;
+            self->hls_fail(u"The HLS initialization segment could not be read"_utf16);
+        });
+
+        response->body()->fully_read(realm, process_body, process_body_error, GC::Ref { realm.global_object() });
+    };
+
+    m_hls->fetch_controller = Fetch::Fetching::fetch(realm, request, Fetch::Infrastructure::FetchAlgorithms::create(move(input)));
+}
+
+void HTMLMediaElement::hls_fetch_next_segment()
+{
+    if (!m_hls || !m_hls->playlist_loaded || m_hls->fetching || m_hls->finished)
+        return;
+
+    if (m_hls->next_index >= m_hls->segments.size()) {
+        hls_finish_after_last_segment();
+        return;
+    }
+
+    auto generation = m_hls->generation;
+    auto token = ++m_hls->request_token;
+    auto index = m_hls->next_index;
+    auto offset = m_hls->virtual_offset;
+    auto segment = m_hls->segments[index];
+    m_hls->segments[index].virtual_start = offset;
+    m_hls->fetching = true;
+
+    auto& realm = HTML::relevant_realm(*this);
+    auto request = create_potential_CORS_request(segment.url, Fetch::Infrastructure::Request::Destination::Video, m_crossorigin);
+    request->set_client(&document().relevant_settings_object());
+    request->set_initiator_type(Fetch::Infrastructure::Request::InitiatorType::Video);
+    if (segment.range_start.has_value()) {
+        Optional<u64> last;
+        if (segment.range_length.has_value())
+            last = *segment.range_start + *segment.range_length - 1;
+        request->add_range_header(*segment.range_start, last);
+    }
+
+    Fetch::Infrastructure::FetchAlgorithms::Input input {};
+    input.process_response = [weak_self = GC::Weak(*this), generation, token, index, offset, duration = segment.duration](GC::Ref<Fetch::Infrastructure::Response> response) {
+        auto self = weak_self.ptr();
+        if (!self || !self->m_hls || self->m_hls->generation != generation || self->m_hls->request_token != token)
+            return;
+
+        response = response->unsafe_response();
+        if (response->is_network_error()) {
+            self->hls_fail(u"An HLS media segment could not be loaded"_utf16);
+            return;
+        }
+
+        auto& realm = HTML::relevant_realm(*self);
+        auto process_body = GC::create_function(self->heap(), [weak_self, generation, token, index, offset, duration](ByteBuffer data) {
+            auto self = weak_self.ptr();
+            if (!self || !self->m_hls || self->m_hls->generation != generation || self->m_hls->request_token != token)
+                return;
+            if (index >= self->m_hls->segments.size())
+                return;
+
+            self->m_hls->fetching = false;
+            auto& segment = self->m_hls->segments[index];
+            segment.virtual_start = offset;
+            segment.size = data.size();
+            self->m_remote_fetch_data->stream->add_chunk_at(offset, data.bytes());
+            self->m_hls->virtual_offset = offset + data.size();
+            self->m_hls->next_index = index + 1;
+
+            // Keep a running estimate of the bitrate so that a seek to an offset we have not reached
+            // yet can be mapped onto a segment.
+            if (duration > 0) {
+                auto fetched_duration = min(self->m_hls->total_duration, duration * static_cast<double>(self->m_hls->next_index));
+                if (fetched_duration > 0)
+                    self->m_hls->bytes_per_second = static_cast<double>(self->m_hls->virtual_offset) / fetched_duration;
+            }
+
+            self->queue_a_media_element_task([](HTMLMediaElement& self) {
+                self.process_media_data(FetchingStatus::Ongoing);
+            });
+            self->hls_fetch_next_segment();
+        });
+        auto process_body_error = GC::create_function(self->heap(), [weak_self, generation, token](JS::Value) {
+            auto self = weak_self.ptr();
+            if (!self || !self->m_hls || self->m_hls->generation != generation || self->m_hls->request_token != token)
+                return;
+            self->hls_fail(u"An HLS media segment could not be read"_utf16);
+        });
+
+        response->body()->fully_read(realm, process_body, process_body_error, GC::Ref { realm.global_object() });
+    };
+
+    m_hls->fetch_controller = Fetch::Fetching::fetch(realm, request, Fetch::Infrastructure::FetchAlgorithms::create(move(input)));
+}
+
+void HTMLMediaElement::hls_finish_after_last_segment()
+{
+    if (!m_hls)
+        return;
+
+    if (m_hls->is_live) {
+        // Live playlists grow: the next data request refreshes the playlist and picks up new segments.
+        m_hls->waiting_for_more_segments = true;
+        return;
+    }
+
+    m_hls->finished = true;
+    if (m_remote_fetch_data && m_remote_fetch_data->stream)
+        m_remote_fetch_data->stream->close();
+}
+
+void HTMLMediaElement::hls_refresh_live_playlist()
+{
+    if (!m_hls || !m_hls->is_live || !m_hls->playlist_loaded || m_hls->fetching)
+        return;
+    if (!m_remote_fetch_data)
+        return;
+    if (m_hls->next_index < m_hls->segments.size())
+        return;
+
+    fetch_hls_playlist(m_remote_fetch_data->url_record, m_hls->generation, 0);
+}
+
+size_t HTMLMediaElement::hls_segment_index_for_offset(u64 offset) const
+{
+    if (!m_hls || m_hls->segments.is_empty())
+        return 0;
+
+    for (size_t i = 0; i < m_hls->segments.size(); ++i) {
+        auto const& segment = m_hls->segments[i];
+        if (segment.size == 0)
+            continue;
+        if (offset >= segment.virtual_start && offset < segment.virtual_start + segment.size)
+            return i;
+    }
+
+    if (m_hls->bytes_per_second > 0 && m_hls->total_duration > 0) {
+        auto seconds = static_cast<double>(offset) / m_hls->bytes_per_second;
+        double elapsed = 0;
+        for (size_t i = 0; i < m_hls->segments.size(); ++i) {
+            elapsed += m_hls->segments[i].duration;
+            if (elapsed >= seconds)
+                return i;
+        }
+    }
+
+    return m_hls->segments.size() - 1;
+}
+
+void HTMLMediaElement::hls_handle_data_request(Optional<u64> offset)
+{
+    if (!m_hls || !m_hls->playlist_loaded)
+        return;
+
+    if (!offset.has_value()) {
+        // The media process does not need more data right now. Keep downloading: an HLS stream is a
+        // sequence of files, and stopping between segments only adds latency later.
+        return;
+    }
+
+    if (m_hls->waiting_for_more_segments) {
+        hls_refresh_live_playlist();
+        return;
+    }
+
+    if (*offset == m_hls->virtual_offset) {
+        hls_fetch_next_segment();
+        return;
+    }
+
+    // A seek. Live streams have no stable byte-to-time mapping, so only in-window seeks are served.
+    if (m_hls->is_live)
+        return;
+
+    auto index = hls_segment_index_for_offset(*offset);
+    if (index >= m_hls->segments.size())
+        return;
+
+    m_hls->next_index = index;
+    m_hls->virtual_offset = *offset;
+    m_hls->fetching = false;
+    m_hls->finished = false;
+    m_hls->fetch_controller = nullptr;
+    // Invalidate any segment download that is still in flight.
+    ++m_hls->request_token;
+
+    hls_fetch_next_segment();
+}
+
+void HTMLMediaElement::hls_fail(Utf16String message)
+{
+    if (m_hls)
+        m_hls->finished = true;
+
+    if (!m_remote_fetch_data) {
+        set_decoder_error(move(message));
+        return;
+    }
+
+    auto failure_callback = move(m_remote_fetch_data->failure_callback);
+    cancel_the_fetching_process();
+    if (failure_callback)
+        failure_callback(move(message));
 }
 
 void HTMLMediaElement::set_audio_track_enabled(Badge<AudioTrack>, GC::Ptr<HTML::AudioTrack> audio_track, bool enabled)

@@ -524,7 +524,9 @@ void Application::show_process_manager()
     m_process_manager_window->activateWindow();
 }
 
-void Application::create_platform_options(WebView::BrowserOptions&, WebView::RequestServerOptions& request_server_options, WebView::WebContentOptions&)
+// NB: The proxy configuration is only derived from system settings on macOS, so the request server
+//     options are unused (and would trip -Wunused-parameter) everywhere else.
+void Application::create_platform_options(WebView::BrowserOptions&, [[maybe_unused]] WebView::RequestServerOptions& request_server_options, WebView::WebContentOptions&)
 {
     Settings::initialize(profile().paths().config);
 #if defined(AK_OS_MACOS)

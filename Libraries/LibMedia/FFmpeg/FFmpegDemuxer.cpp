@@ -19,6 +19,7 @@
 #include <LibMedia/Containers/ConstantBitrateContainerNavigator.h>
 #include <LibMedia/Containers/FLACNavigator.h>
 #include <LibMedia/Containers/IndexedContainerNavigator.h>
+#include <LibMedia/Containers/MpegTSContainerNavigator.h>
 #include <LibMedia/Containers/OggNavigator.h>
 #include <LibMedia/FFmpeg/FFmpegDemuxer.h>
 #include <LibMedia/FFmpeg/FFmpegHelpers.h>
@@ -146,7 +147,10 @@ static DecoderErrorOr<void> initialize_format_context(AVFormatContext*& format_c
     AVDictionary* options = nullptr;
     ScopeGuard free_options = [&] { av_dict_free(&options); };
 
-    if (av_dict_set(&options, "format_whitelist", "flac,ogg,wav", 0) < 0)
+    // NB: mpegts is what HLS segments are almost always carried in. Leaving it out makes every
+    //     transport-stream playlist fail as "Could not find a demuxer for stream", even though the
+    //     demuxer is compiled in.
+    if (av_dict_set(&options, "format_whitelist", "flac,ogg,wav,mpegts", 0) < 0)
         return DecoderError::with_description(DecoderErrorCategory::Memory, "Failed to allocate FFmpeg format whitelist"sv);
 
     auto const& codecs = codec_whitelist();
@@ -164,7 +168,8 @@ static DecoderErrorOr<void> initialize_format_context(AVFormatContext*& format_c
         return DecoderError::with_description(DecoderErrorCategory::UnrecognizedFormat, "Failed to open input for format parsing"sv);
 
     // Read stream info; doing this is required for headerless formats like MPEG
-    if (avformat_find_stream_info(format_context, nullptr) < 0)
+    auto find_info_result = avformat_find_stream_info(format_context, nullptr);
+    if (find_info_result < 0)
         return DecoderError::with_description(DecoderErrorCategory::Corrupted, "Failed to find stream info"sv);
 
     close_input.disarm();
@@ -265,7 +270,12 @@ static DecoderErrorOr<ByteBuffer> synthesize_aac_configuration_record(AVStream c
 
 DecoderErrorOr<NonnullRefPtr<Demuxer>> FFmpegDemuxer::from_stream(NonnullRefPtr<MediaStream> const& stream)
 {
-    auto io_context = DECODER_TRY_ALLOC(Media::FFmpeg::FFmpegIOContext::create(stream->create_cursor()));
+    // A blocking cursor lets a format that has to read ahead to describe itself, such as MPEG-TS, wait for the rest
+    // of the resource instead of concluding that the stream ended at the end of whatever has arrived so far.
+    // avformat caches that conclusion, so a premature EOF stalls playback even after the data does arrive.
+    auto initial_cursor = stream->create_cursor();
+    initial_cursor->set_is_blocking(true);
+    auto io_context = DECODER_TRY_ALLOC(Media::FFmpeg::FFmpegIOContext::create(initial_cursor));
 
     AVFormatContext* format_context = nullptr;
     TRY(initialize_format_context(format_context, *io_context->avio_context()));
@@ -458,10 +468,40 @@ void FFmpegDemuxer::start_buffered_scan_thread(AVFormatContext& context)
             if (!is_monotonic)
                 entries.clear();
 
+            // A track with no entries contributes nothing, and leaving it in would make an index-less
+            // container look indexed. Formats such as MPEG-TS build no index at all and need to fall
+            // through to a navigator that does not depend on one.
+            if (entries.is_empty())
+                continue;
+
             track_indices.empend(m_stream_info[i].track.identifier(), move(entries));
         }
         if (!track_indices.is_empty())
             navigator = make<IndexedContainerNavigator>(move(track_indices), m_total_duration);
+
+        // MPEG-TS never builds an index, so fall back to its constant rate to report buffered ranges. Without
+        // this, the element's ready state can never rise past HAVE_CURRENT_DATA and playback never starts.
+        auto format_name = StringView(context.iformat->name, strlen(context.iformat->name));
+        if (navigator == nullptr && format_name == "mpegts"sv) {
+            Vector<u64> track_identifiers;
+            for (auto const& stream_info : m_stream_info)
+                track_identifiers.append(stream_info.track.identifier());
+
+            auto bytes_per_second = [&] -> u32 {
+                auto stream_size = avio_size(context.pb);
+                if (stream_size <= 0 || m_total_duration.is_zero())
+                    return 0;
+                auto rate = static_cast<double>(stream_size) / m_total_duration.to_seconds_f64();
+                if (rate <= 0 || rate > NumericLimits<u32>::max())
+                    return 0;
+                return static_cast<u32>(rate);
+            }();
+
+            // A transport stream's first timestamp is rarely zero, so the timeline it describes starts there.
+            // The demuxer reports positions relative to that timestamp, so the navigator must agree.
+            if (bytes_per_second > 0)
+                navigator = make<MpegTSContainerNavigator>(move(track_identifiers), 0, bytes_per_second, AK::Duration::zero(), m_total_duration);
+        }
     }
     if (navigator == nullptr)
         return;
@@ -478,7 +518,9 @@ void FFmpegDemuxer::start_buffered_scan_thread(AVFormatContext& context)
 
 DecoderErrorOr<void> FFmpegDemuxer::create_context_for_track(Track const& track)
 {
+    // See from_stream(): reading packets must be able to wait for the resource to grow.
     auto cursor = m_stream->create_cursor();
+    cursor->set_is_blocking(true);
     auto io_context = MUST(Media::FFmpeg::FFmpegIOContext::create(cursor));
 
     auto track_context = make<TrackContext>(move(cursor), move(io_context));
