@@ -31,6 +31,7 @@
 #include <UI/Qt/Menu.h>
 #include <UI/Qt/Popover.h>
 #include <UI/Qt/StringUtils.h>
+#include <UI/Qt/Thoth/Appearance.h>
 #include <UI/Qt/Thoth/Localization.h>
 #include <UI/Qt/Thoth/NavigationButton.h>
 #include <UI/Qt/Thoth/Sidebar.h>
