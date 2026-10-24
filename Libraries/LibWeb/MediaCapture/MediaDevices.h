@@ -7,6 +7,8 @@
 #pragma once
 
 #include <AK/HashMap.h>
+#include <AK/Time.h>
+#include <LibCore/Forward.h>
 #include <AK/HashTable.h>
 #include <AK/Optional.h>
 #include <AK/Utf16FlyString.h>
@@ -57,12 +59,29 @@ private:
     struct PendingGetUserMediaRequest final {
         GC::Ref<WebIDL::Promise> promise;
         Optional<Vector<Utf16String>> requested_device_ids;
+        Optional<MediaTrackConstraints> video_constraints;
+        bool audio_requested { true };
     };
 
     struct PendingEnumerateDevicesRequest final {
         GC::Ref<WebIDL::Promise> promise;
     };
 
+    struct CameraTrack {
+        GC::Weak<MediaStreamTrack> track;
+        GC::Ptr<WebIDL::Promise> promise;
+        GC::Ptr<MediaStream> stream;
+        GC::Ptr<WebIDL::Promise> apply_promise;
+        Optional<MediaTrackSettings> pending_settings;
+        Optional<Vector<Utf16String>> audio_device_ids;
+        MediaTrackConstraints constraints;
+        bool audio_requested { false };
+        MonotonicTime last_frame_at { MonotonicTime::now() };
+    };
+    HashMap<u64, CameraTrack> m_camera_tracks;
+    RefPtr<Core::Timer> m_camera_frame_timer;
+    void queue_video_capture_task(GC::Ref<WebIDL::Promise>, MediaTrackConstraints, bool audio_requested, Optional<Vector<Utf16String>> audio_device_ids);
+    void poll_camera_frames();
     explicit MediaDevices(HTML::Window&);
     virtual void finalize() override;
     void initialize_pending_request_state_change_listener();
@@ -77,12 +96,12 @@ private:
     bool has_live_device_of_kind(Utf16FlyString const& kind) const;
     void set_device_information_exposure(bool audio_requested, bool video_requested, bool value);
     void queue_enumerate_devices_task(GC::Ref<WebIDL::Promise>);
-    void queue_get_user_media_task(GC::Ref<WebIDL::Promise>, Optional<Vector<Utf16String>> requested_device_ids);
+    void queue_get_user_media_task(GC::Ref<WebIDL::Promise>, Optional<Vector<Utf16String>> requested_device_ids, GC::Ptr<MediaStream> existing_stream = nullptr);
     void process_pending_enumerate_devices_requests();
     void process_pending_get_user_media_requests();
     GC::RootVector<GC::Ref<MediaDeviceInfo>> create_list_of_device_info_objects(Vector<StoredDevice> const& device_list);
     void run_device_change_notification_steps(Vector<StoredDevice> const& device_list);
-    static Vector<StoredDevice> current_audio_device_snapshot();
+    Vector<StoredDevice> current_audio_device_snapshot();
     void did_observe_audio_device_cache_update();
     // Runs the callback once the process has a device list fetched from now on, or at once where no list ever comes.
     void run_with_fresh_audio_device_list(GC::Ref<GC::Function<void()>>);

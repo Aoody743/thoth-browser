@@ -10,15 +10,13 @@
 #include <UI/Qt/StringUtils.h>
 
 #include <QPainter>
-#include <QPainterPath>
-#include <QPainterPathStroker>
 #include <QGuiApplication>
 #include <QPalette>
 #include <QPen>
 #include <QPixmap>
+#include <QPixmapCache>
 #include <QPointF>
 #include <QRectF>
-#include <QTransform>
 
 namespace Ladybird {
 
@@ -46,206 +44,6 @@ QIcon icon_from_png(ReadonlyBytes favicon_png, int logical_size)
     return icon;
 }
 
-static qreal chrome_icon_weight_scale()
-{
-    auto* application = QGuiApplication::instance();
-    if (!application)
-        return 1.0;
-
-    auto weight = application->property("ThothIconWeight").toString();
-    if (weight == "fine")
-        return 0.82;
-    if (weight == "expressive")
-        return 1.18;
-    return 1.0;
-}
-
-static QPen chrome_icon_pen(QColor const& color, qreal width)
-{
-    return QPen(color, width * chrome_icon_weight_scale(), Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
-}
-
-static void draw_stroked_icon_path(QPainter& painter, QPainterPath const& path, QColor const& color, qreal width)
-{
-    QPainterPathStroker stroker;
-    stroker.setWidth(width * chrome_icon_weight_scale());
-    stroker.setCapStyle(Qt::RoundCap);
-    stroker.setJoinStyle(Qt::RoundJoin);
-
-    auto stroke = stroker.createStroke(path);
-    stroke.setFillRule(Qt::WindingFill);
-    painter.fillPath(stroke, color);
-}
-
-static void draw_back_icon(QPainter& painter, QColor const& color)
-{
-    QPainterPath path;
-    path.moveTo(16.7, 10.0);
-    path.lineTo(3.3, 10.0);
-    path.moveTo(9.2, 4.7);
-    path.lineTo(3.3, 10.0);
-    path.lineTo(9.2, 15.3);
-    draw_stroked_icon_path(painter, path, color, 2.0);
-}
-
-static void draw_forward_icon(QPainter& painter, QColor const& color)
-{
-    QPainterPath path;
-    path.moveTo(3.3, 10.0);
-    path.lineTo(16.7, 10.0);
-    path.moveTo(10.8, 4.7);
-    path.lineTo(16.7, 10.0);
-    path.lineTo(10.8, 15.3);
-    draw_stroked_icon_path(painter, path, color, 2.0);
-}
-
-static void draw_reload_icon(QPainter& painter, QColor const& color)
-{
-    QPainterPath shape;
-    shape.setFillRule(Qt::WindingFill);
-    shape.arcMoveTo(QRectF(3.0, 3.0, 14.0, 14.0), 58.0);
-    shape.arcTo(QRectF(3.0, 3.0, 14.0, 14.0), 58.0, 272.0);
-    shape.arcTo(QRectF(4.9, 4.9, 10.2, 10.2), 330.0, -272.0);
-    shape.closeSubpath();
-
-    QPainterPath arrow_head;
-    arrow_head.moveTo(17.1, 7.55);
-    arrow_head.lineTo(14.65, 2.05);
-    arrow_head.lineTo(11.35, 7.55);
-    arrow_head.closeSubpath();
-    shape.addPath(arrow_head);
-
-    painter.fillPath(shape, color);
-}
-
-static void draw_star_icon(QPainter& painter, QColor const& color, bool filled)
-{
-    QPainterPath path;
-    path.moveTo(10.0, 2.7);
-    path.lineTo(12.5, 7.6);
-    path.lineTo(18.0, 8.1);
-    path.lineTo(13.9, 11.8);
-    path.lineTo(15.1, 17.3);
-    path.lineTo(10.0, 14.4);
-    path.lineTo(4.9, 17.3);
-    path.lineTo(6.1, 11.8);
-    path.lineTo(2.0, 8.1);
-    path.lineTo(7.5, 7.6);
-    path.closeSubpath();
-
-    painter.setPen(chrome_icon_pen(color, filled ? 1.2 : 1.65));
-    if (filled)
-        painter.setBrush(color);
-    else
-        painter.setBrush(Qt::NoBrush);
-    painter.drawPath(path);
-}
-
-static QPainterPath horizontally_flipped_path(QPainterPath const& path)
-{
-    QTransform transform;
-    transform.translate(20.0, 0.0);
-    transform.scale(-1.0, 1.0);
-    return transform.map(path);
-}
-
-static void draw_vertical_tab_bar_icon(QPainter& painter, QColor const& color, bool expanded, bool right_side)
-{
-    QPainterPath tab_bar;
-    tab_bar.addRoundedRect(QRectF(3.8, 4.2, 12.4, 11.6), 1.6, 1.6);
-    tab_bar.moveTo(7.8, 4.6);
-    tab_bar.lineTo(7.8, 15.4);
-
-    QPainterPath arrow;
-    if (expanded) {
-        arrow.moveTo(13.1, 7.8);
-        arrow.lineTo(10.3, 10.0);
-        arrow.lineTo(13.1, 12.2);
-    } else {
-        arrow.moveTo(10.7, 7.8);
-        arrow.lineTo(13.5, 10.0);
-        arrow.lineTo(10.7, 12.2);
-    }
-
-    if (right_side) {
-        tab_bar = horizontally_flipped_path(tab_bar);
-        arrow = horizontally_flipped_path(arrow);
-    }
-
-    draw_stroked_icon_path(painter, tab_bar, color, 1.55);
-    draw_stroked_icon_path(painter, arrow, color, 1.85);
-}
-
-static void draw_globe_icon(QPainter& painter, QColor const& color)
-{
-    auto outline_rect = QRectF(3.5, 3.5, 13, 13);
-    QRectF meridian_rect(7.5, outline_rect.top() + 0.25, 5.0, outline_rect.height() - 0.5);
-
-    QPainterPath path;
-    path.addEllipse(outline_rect);
-    path.moveTo(QPointF(outline_rect.left() + 1.3, 10));
-    path.lineTo(QPointF(outline_rect.right() - 1.3, 10));
-    path.arcMoveTo(meridian_rect, 90);
-    path.arcTo(meridian_rect, 90, 180);
-    path.arcMoveTo(meridian_rect, 270);
-    path.arcTo(meridian_rect, 270, 180);
-
-    draw_stroked_icon_path(painter, path, color, 1.55);
-}
-
-static void draw_unlock_icon(QPainter& painter, QColor const& color)
-{
-    QPainterPath body;
-    body.addRoundedRect(QRectF(4.1, 9.4, 11.8, 7.6), 1.65, 1.65);
-    painter.setPen(chrome_icon_pen(color, 1.65));
-    painter.setBrush(Qt::NoBrush);
-    painter.drawPath(body);
-
-    QPainterPath shackle;
-    shackle.moveTo(7.0, 9.2);
-    shackle.lineTo(7.0, 7.5);
-    shackle.cubicTo(7.0, 5.0, 8.8, 3.3, 11.2, 3.3);
-    shackle.cubicTo(13.5, 3.3, 15.0, 4.8, 15.0, 7.0);
-    painter.drawPath(shackle);
-
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(color);
-    painter.drawEllipse(QRectF(9.25, 12.0, 1.5, 1.5));
-    painter.drawRoundedRect(QRectF(9.8, 13.1, 0.5, 2.2), 0.25, 0.25);
-}
-
-static void draw_volume_icon(QPainter& painter, QColor const& color, bool muted)
-{
-    QPainterPath speaker;
-    speaker.setFillRule(Qt::WindingFill);
-
-    speaker.moveTo(0.55, 14);
-    speaker.lineTo(4.55, 14);
-    speaker.lineTo(10.55, 19);
-    speaker.lineTo(10.55, 1);
-    speaker.lineTo(4.55, 6);
-    speaker.lineTo(0.55, 6);
-    speaker.closeSubpath();
-    painter.fillPath(speaker, color);
-
-    if (muted) {
-        painter.drawLine(QPointF(1.5, 1.0), QPointF(18.5, 19.0));
-        return;
-    }
-
-    QPainterPath inner_wave;
-    inner_wave.moveTo(12.55, 6);
-    inner_wave.lineTo(12.55, 14);
-    inner_wave.cubicTo(14.15, 14, 15.45, 12.21, 15.45, 10);
-    inner_wave.cubicTo(15.45, 7.79, 14.15, 6, 12.55, 6);
-    inner_wave.closeSubpath();
-    painter.fillPath(inner_wave, color);
-
-    painter.setBrush(Qt::NoBrush);
-    painter.setPen(chrome_icon_pen(color, 1.6));
-    painter.drawArc(QRectF(7.85, 2.4, 10.8, 15.2), 90 * 16, -180 * 16);
-}
-
 static QPixmap create_transparent_icon_pixmap(QSize logical_size, qreal device_pixel_ratio)
 {
     QPixmap pixmap(physical_size_for_device_pixel_ratio(logical_size, device_pixel_ratio));
@@ -254,148 +52,99 @@ static QPixmap create_transparent_icon_pixmap(QSize logical_size, qreal device_p
     return pixmap;
 }
 
+QPixmap library_icon_pixmap(QString const& name, QColor color, QSize logical_size, qreal device_pixel_ratio)
+{
+    auto weight = qApp ? qApp->property("ThothIconWeight").toString() : QString {};
+    if (weight != "fine" && weight != "expressive")
+        weight = "regular";
+    auto cache_key = QString("ThothLucide/%1/%2/%3/%4/%5x%6")
+                         .arg(name, weight, color.name(QColor::HexArgb))
+                         .arg(device_pixel_ratio).arg(logical_size.width()).arg(logical_size.height());
+    QPixmap cached;
+    if (QPixmapCache::find(cache_key, &cached))
+        return cached;
+    QPixmap source(QString(":/Thoth/Icons/lucide/%1-%2.png").arg(name, weight));
+    if (source.isNull()) {
+        qWarning("Missing bundled Lucide icon: %s", qPrintable(name));
+        return {};
+    }
+    // Tint the upstream asset's alpha mask; no icon geometry is generated here.
+    QPainter tint(&source);
+    tint.setCompositionMode(QPainter::CompositionMode_SourceIn);
+    tint.fillRect(source.rect(), color);
+    tint.end();
+    auto pixmap = create_transparent_icon_pixmap(logical_size, device_pixel_ratio);
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform);
+    painter.drawPixmap(QRect(QPoint(), logical_size), source);
+    painter.end();
+    QPixmapCache::insert(cache_key, pixmap);
+    return pixmap;
+}
+
+static QString chrome_icon_name(ChromeIcon icon)
+{
+    switch (icon) {
+    case ChromeIcon::Back: return QStringLiteral("arrow-left");
+    case ChromeIcon::Forward: return QStringLiteral("arrow-right");
+    case ChromeIcon::Loading: return QStringLiteral("loader-circle");
+    case ChromeIcon::Reload: return QStringLiteral("rotate-cw");
+    case ChromeIcon::Stop: return QStringLiteral("x");
+    case ChromeIcon::NewTab: return QStringLiteral("plus");
+    case ChromeIcon::Close: return QStringLiteral("x");
+    case ChromeIcon::TabClose: return QStringLiteral("x");
+    case ChromeIcon::Menu: return QStringLiteral("menu");
+    case ChromeIcon::Star: return QStringLiteral("star");
+    case ChromeIcon::StarFilled: return QStringLiteral("star-filled");
+    case ChromeIcon::Search: return QStringLiteral("search");
+    case ChromeIcon::Globe: return QStringLiteral("globe");
+    case ChromeIcon::Unlock: return QStringLiteral("lock-keyhole-open");
+    case ChromeIcon::Lock: return QStringLiteral("lock-keyhole");
+    case ChromeIcon::Folder: return QStringLiteral("folder");
+    case ChromeIcon::Download: return QStringLiteral("arrow-down-to-line");
+    case ChromeIcon::DownloadActive: return QStringLiteral("arrow-down-to-line");
+    case ChromeIcon::Volume: return QStringLiteral("volume-2");
+    case ChromeIcon::VolumeMuted: return QStringLiteral("volume-x");
+    case ChromeIcon::ChevronUp: return QStringLiteral("chevron-up");
+    case ChromeIcon::ChevronDown: return QStringLiteral("chevron-down");
+    case ChromeIcon::ChevronRight: return QStringLiteral("chevron-right");
+    case ChromeIcon::VerticalTabBarCollapse: return QStringLiteral("panel-left-close");
+    case ChromeIcon::VerticalTabBarCollapseRight: return QStringLiteral("panel-right-close");
+    case ChromeIcon::VerticalTabBarExpand: return QStringLiteral("panel-left-open");
+    case ChromeIcon::VerticalTabBarExpandRight: return QStringLiteral("panel-right-open");
+    case ChromeIcon::WindowMinimize: return QStringLiteral("minus");
+    case ChromeIcon::WindowMaximize: return QStringLiteral("square");
+    case ChromeIcon::WindowRestore: return QStringLiteral("copy");
+    case ChromeIcon::WindowClose: return QStringLiteral("x");
+    case ChromeIcon::Book: return QStringLiteral("book-open");
+    case ChromeIcon::Diamond: return QStringLiteral("diamond");
+    case ChromeIcon::Orbit: return QStringLiteral("orbit");
+    case ChromeIcon::Shield: return QStringLiteral("shield-check");
+    case ChromeIcon::Settings: return QStringLiteral("settings");
+    case ChromeIcon::History: return QStringLiteral("history");
+    case ChromeIcon::Home: return QStringLiteral("house");
+    case ChromeIcon::Copy: return QStringLiteral("copy");
+    case ChromeIcon::Link: return QStringLiteral("link");
+    case ChromeIcon::ExternalLink: return QStringLiteral("square-arrow-out-up-right");
+    case ChromeIcon::Pin: return QStringLiteral("pin");
+    case ChromeIcon::Unpin: return QStringLiteral("pin-off");
+    case ChromeIcon::Sleep: return QStringLiteral("moon");
+    case ChromeIcon::Trash: return QStringLiteral("trash-2");
+    case ChromeIcon::Split: return QStringLiteral("square-split-horizontal");
+    case ChromeIcon::Camera: return QStringLiteral("camera");
+    case ChromeIcon::Microphone: return QStringLiteral("mic");
+    case ChromeIcon::File: return QStringLiteral("file");
+    case ChromeIcon::Info: return QStringLiteral("info");
+    case ChromeIcon::FolderPlus: return QStringLiteral("folder-plus");
+    case ChromeIcon::Update: return QStringLiteral("cloud-download");
+    case ChromeIcon::Help: return QStringLiteral("circle-help");
+    }
+    Q_UNREACHABLE();
+}
+
 static QPixmap create_chrome_icon_pixmap(ChromeIcon icon, QColor color, qreal device_pixel_ratio)
 {
-    auto pixmap = create_transparent_icon_pixmap({ 20, 20 }, device_pixel_ratio);
-
-    QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setPen(chrome_icon_pen(color, 1.7));
-
-    switch (icon) {
-    case ChromeIcon::Back:
-        draw_back_icon(painter, color);
-        break;
-    case ChromeIcon::Forward:
-        draw_forward_icon(painter, color);
-        break;
-    case ChromeIcon::Reload:
-        draw_reload_icon(painter, color);
-        break;
-    case ChromeIcon::Stop:
-        painter.setPen(chrome_icon_pen(color, 1.75));
-        painter.drawLine(QPointF(6.0, 6.0), QPointF(14.0, 14.0));
-        painter.drawLine(QPointF(14.0, 6.0), QPointF(6.0, 14.0));
-        break;
-    case ChromeIcon::NewTab:
-        painter.setPen(chrome_icon_pen(color, 1.9));
-        painter.drawLine(QPointF(10.0, 4.3), QPointF(10.0, 15.7));
-        painter.drawLine(QPointF(4.3, 10.0), QPointF(15.7, 10.0));
-        break;
-    case ChromeIcon::Close:
-    case ChromeIcon::TabClose:
-        painter.setPen(chrome_icon_pen(color, 1.9));
-        painter.drawLine(QPointF(5.5, 5.25), QPointF(14.5, 14.75));
-        painter.drawLine(QPointF(14.5, 5.25), QPointF(5.5, 14.75));
-        break;
-    case ChromeIcon::Menu:
-        painter.setPen(chrome_icon_pen(color, 1.55));
-        painter.drawLine(QPointF(4.1, 6.2), QPointF(15.9, 6.2));
-        painter.drawLine(QPointF(4.1, 10.0), QPointF(15.9, 10.0));
-        painter.drawLine(QPointF(4.1, 13.8), QPointF(15.9, 13.8));
-        break;
-    case ChromeIcon::Star:
-        draw_star_icon(painter, color, false);
-        break;
-    case ChromeIcon::StarFilled:
-        draw_star_icon(painter, color, true);
-        break;
-    case ChromeIcon::Search:
-        painter.setPen(chrome_icon_pen(color, 1.55));
-        painter.drawEllipse(QRectF(4.1, 4.0, 9.7, 9.7));
-        painter.drawLine(QPointF(12.0, 12.1), QPointF(15.9, 16.0));
-        break;
-    case ChromeIcon::Globe:
-        draw_globe_icon(painter, color);
-        break;
-    case ChromeIcon::Unlock:
-        draw_unlock_icon(painter, color);
-        break;
-    case ChromeIcon::Folder: {
-        painter.setPen(chrome_icon_pen(color, 1.6));
-        QPainterPath path;
-        path.moveTo(2.8, 5.1);
-        path.lineTo(7.6, 5.1);
-        path.lineTo(9.2, 7.0);
-        path.lineTo(17.2, 7.0);
-        path.quadTo(18.0, 7.0, 18.0, 7.8);
-        path.lineTo(18.0, 14.1);
-        path.quadTo(18.0, 14.9, 17.2, 14.9);
-        path.lineTo(2.8, 14.9);
-        path.quadTo(2.0, 14.9, 2.0, 14.1);
-        path.lineTo(2.0, 5.9);
-        path.quadTo(2.0, 5.1, 2.8, 5.1);
-        path.closeSubpath();
-        painter.drawPath(path);
-        break;
-    }
-    case ChromeIcon::Download:
-    case ChromeIcon::DownloadActive: {
-        painter.setPen(chrome_icon_pen(color, 1.75));
-        painter.drawLine(QPointF(10.0, 3.4), QPointF(10.0, 12.0));
-        painter.drawLine(QPointF(6.6, 8.7), QPointF(10.0, 12.1));
-        painter.drawLine(QPointF(13.4, 8.7), QPointF(10.0, 12.1));
-
-        QPainterPath tray;
-        tray.moveTo(4.0, 13.4);
-        tray.lineTo(4.0, 15.7);
-        tray.quadTo(4.0, 16.6, 4.9, 16.6);
-        tray.lineTo(15.1, 16.6);
-        tray.quadTo(16.0, 16.6, 16.0, 15.7);
-        tray.lineTo(16.0, 13.4);
-        painter.drawPath(tray);
-        break;
-    }
-    case ChromeIcon::Volume:
-        draw_volume_icon(painter, color, false);
-        break;
-    case ChromeIcon::VolumeMuted:
-        draw_volume_icon(painter, color, true);
-        break;
-    case ChromeIcon::ChevronUp:
-        painter.setPen(chrome_icon_pen(color, 1.85));
-        painter.drawLine(QPointF(5.0, 12.5), QPointF(10.0, 7.5));
-        painter.drawLine(QPointF(10.0, 7.5), QPointF(15.0, 12.5));
-        break;
-    case ChromeIcon::ChevronDown:
-        painter.setPen(chrome_icon_pen(color, 1.85));
-        painter.drawLine(QPointF(5.0, 7.5), QPointF(10.0, 12.5));
-        painter.drawLine(QPointF(10.0, 12.5), QPointF(15.0, 7.5));
-        break;
-    case ChromeIcon::VerticalTabBarCollapse:
-        draw_vertical_tab_bar_icon(painter, color, true, false);
-        break;
-    case ChromeIcon::VerticalTabBarCollapseRight:
-        draw_vertical_tab_bar_icon(painter, color, true, true);
-        break;
-    case ChromeIcon::VerticalTabBarExpand:
-        draw_vertical_tab_bar_icon(painter, color, false, false);
-        break;
-    case ChromeIcon::VerticalTabBarExpandRight:
-        draw_vertical_tab_bar_icon(painter, color, false, true);
-        break;
-    case ChromeIcon::WindowMinimize:
-        painter.setPen(chrome_icon_pen(color, 1.65));
-        painter.drawLine(QPointF(5.2, 10.0), QPointF(14.8, 10.0));
-        break;
-    case ChromeIcon::WindowMaximize:
-        painter.setPen(chrome_icon_pen(color, 1.55));
-        painter.drawRoundedRect(QRectF(5.0, 5.0, 10.0, 10.0), 1.4, 1.4);
-        break;
-    case ChromeIcon::WindowRestore:
-        painter.setPen(chrome_icon_pen(color, 1.55));
-        painter.drawRoundedRect(QRectF(5.1, 7.0, 7.9, 7.9), 1.2, 1.2);
-        painter.drawLine(QPointF(7.2, 5.1), QPointF(14.9, 5.1));
-        painter.drawLine(QPointF(14.9, 5.1), QPointF(14.9, 12.9));
-        break;
-    case ChromeIcon::WindowClose:
-        painter.setPen(chrome_icon_pen(color, 1.65));
-        painter.drawLine(QPointF(5.5, 5.5), QPointF(14.5, 14.5));
-        painter.drawLine(QPointF(14.5, 5.5), QPointF(5.5, 14.5));
-        break;
-    }
-
-    return pixmap;
+    return library_icon_pixmap(chrome_icon_name(icon), color, { 20, 20 }, device_pixel_ratio);
 }
 
 QIcon create_chrome_icon(ChromeIcon icon, QPalette const& palette)
@@ -441,26 +190,13 @@ QIcon create_chrome_icon(ChromeIcon icon, QPalette const& palette)
 
 static QPixmap create_loading_spinner_icon_pixmap(QPalette const& palette, int frame, int device_pixel_ratio)
 {
-    static constexpr int icon_size = 16;
-    static constexpr int segment_count = 12;
-
-    auto pixmap = create_transparent_icon_pixmap({ icon_size, icon_size }, device_pixel_ratio);
-
+    auto source = library_icon_pixmap("loader-circle", ChromeStyle::chrome_text(palette), { 16, 16 }, device_pixel_ratio);
+    auto pixmap = create_transparent_icon_pixmap({ 16, 16 }, device_pixel_ratio);
     QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.translate(icon_size / 2.0, icon_size / 2.0);
-
-    auto color = ChromeStyle::chrome_text(palette);
-    for (int segment = 0; segment < segment_count; ++segment) {
-        auto segment_color = color;
-        segment_color.setAlpha(((segment - frame + segment_count) % segment_count + 1) * 255 / segment_count);
-
-        painter.save();
-        painter.rotate(segment * 360.0 / segment_count);
-        painter.setPen(QPen(segment_color, 2, Qt::SolidLine, Qt::RoundCap));
-        painter.drawLine(QPointF(0, -4), QPointF(0, -7));
-        painter.restore();
-    }
+    painter.setRenderHint(QPainter::SmoothPixmapTransform);
+    painter.translate(8, 8);
+    painter.rotate((frame % 12) * 30);
+    painter.drawPixmap(QRect(-8, -8, 16, 16), source);
 
     return pixmap;
 }

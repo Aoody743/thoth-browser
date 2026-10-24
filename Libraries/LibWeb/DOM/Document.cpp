@@ -347,6 +347,38 @@ static GC::Ref<HTML::BrowsingContext> obtain_a_browsing_context_to_use_for_a_nav
     return new_browsing_context;
 }
 
+// Media capture currently supports top-level and same-origin documents. Honor
+// explicit response restrictions before asking the user. This is a restricted
+// subset of Permissions Policy, not cross-origin delegation or reporting.
+static bool media_response_policy_allows(StringView header, StringView feature, URL::Origin const& origin)
+{
+    auto serialized_origin = origin.serialize();
+    for (auto directive : header.split_view(',')) {
+        auto equals = directive.find('=');
+        if (!equals.has_value() || directive.substring_view(0, *equals).trim_whitespace() != feature)
+            continue;
+        auto value = directive.substring_view(*equals + 1).trim_whitespace();
+        if (auto parameter = value.find(';'); parameter.has_value())
+            value = value.substring_view(0, *parameter).trim_whitespace();
+        if (value == "*"sv)
+            continue;
+        if (!value.starts_with('(') || !value.ends_with(')'))
+            return false;
+        value = value.substring_view(1, value.length() - 2).trim_whitespace();
+        bool allowed = false;
+        for (auto token : value.split_view_if([](char ch) { return ch == ' ' || ch == '\t'; })) {
+            if (token == "self"sv && !origin.is_opaque())
+                allowed = true;
+            if (token.starts_with('"') && token.ends_with('"') && token.length() >= 2
+                && token.substring_view(1, token.length() - 2) == serialized_origin)
+                allowed = true;
+        }
+        if (!allowed)
+            return false;
+    }
+    return true;
+}
+
 // https://html.spec.whatwg.org/multipage/document-lifecycle.html#initialise-the-document-object
 WebIDL::ExceptionOr<GC::Ref<Document>> Document::create_and_initialize(Type type, Utf16FlyString content_type, HTML::NavigationParams const& navigation_params)
 {
@@ -475,6 +507,10 @@ WebIDL::ExceptionOr<GC::Ref<Document>> Document::create_and_initialize(Type type
     document->set_origin(navigation_params.origin);
     document->set_browsing_context(browsing_context);
     document->m_policy_container = navigation_params.policy_container;
+    if (auto media_policy = navigation_params.response->header_list()->get("Permissions-Policy"sv); media_policy.has_value()) {
+        document->m_camera_policy_allows = media_response_policy_allows(media_policy->view(), "camera"sv, navigation_params.origin);
+        document->m_microphone_policy_allows = media_response_policy_allows(media_policy->view(), "microphone"sv, navigation_params.origin);
+    }
     document->set_opener_policy(navigation_params.opener_policy);
     document->m_active_sandboxing_flag_set = navigation_params.final_sandboxing_flag_set;
     document->m_navigation_id = navigation_params.id;
@@ -6360,8 +6396,33 @@ bool Document::is_allowed_to_use_feature(PolicyControlledFeature feature) const
         // FIXME: Implement allowlist for this.
         return true;
     case PolicyControlledFeature::Camera:
-        // FIXME: Implement allowlist for this.
+    case PolicyControlledFeature::Microphone: {
+        if (!(feature == PolicyControlledFeature::Camera ? m_camera_policy_allows : m_microphone_policy_allows))
+            return false;
+        if (!default_allowlist_enables_feature_in(*this))
+            return false;
+        auto media_navigable = navigable();
+        if (media_navigable->parent()) {
+            auto container_document = media_navigable->container_document();
+            if (!container_document || !container_document->is_allowed_to_use_feature(feature))
+                return false;
+            // Honor an embedding document's explicit denial, including in a
+            // same-origin frame. Cross-origin delegation remains unavailable.
+            if (auto container = media_navigable->container()) {
+                auto allow = container->get_attribute(HTML::AttributeNames::allow);
+                if (allow.has_value()) {
+                    auto feature_name = feature == PolicyControlledFeature::Camera ? "camera"sv : "microphone"sv;
+                    auto allow_utf8 = allow->to_utf8();
+                    for (auto directive : allow_utf8.bytes_as_string_view().split_view(';')) {
+                        auto tokens = directive.trim_whitespace().split_view(' ');
+                        if (!tokens.is_empty() && tokens[0] == feature_name && tokens.contains_slow("'none'"sv))
+                            return false;
+                    }
+                }
+            }
+        }
         return true;
+    }
     case PolicyControlledFeature::FocusWithoutUserActivation:
         // FIXME: Implement the allow attribute, which a container uses to delegate the feature to another origin.
         return default_allowlist_enables_feature_in(*this);
@@ -6372,9 +6433,6 @@ bool Document::is_allowed_to_use_feature(PolicyControlledFeature feature) const
         // FIXME: Implement allowlist for this.
         return true;
     case PolicyControlledFeature::Gamepad:
-        // FIXME: Implement allowlist for this.
-        return true;
-    case PolicyControlledFeature::Microphone:
         // FIXME: Implement allowlist for this.
         return true;
     case PolicyControlledFeature::WindowManagement:

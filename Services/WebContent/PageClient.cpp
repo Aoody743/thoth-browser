@@ -1191,6 +1191,35 @@ void PageClient::page_did_request_geolocation_position(u64 request_id)
     client().async_did_request_geolocation_position(m_id, request_id);
 }
 
+String PageClient::camera_devices()
+{
+    auto response = client().send_sync_but_allow_failure<Messages::WebContentClient::CameraDevices>(m_id);
+    return response ? response->take_devices() : "[]"_string;
+}
+
+u64 PageClient::start_video_capture(String const& device_id, String const& configuration)
+{
+    auto response = client().send_sync_but_allow_failure<Messages::WebContentClient::StartVideoCapture>(m_id, device_id, configuration);
+    return response ? response->capture_id() : 0;
+}
+
+bool PageClient::configure_video_capture(u64 capture_id, String const& configuration)
+{
+    auto response = client().send_sync_but_allow_failure<Messages::WebContentClient::ConfigureVideoCapture>(m_id, capture_id, configuration);
+    return response && response->success();
+}
+
+Gfx::ShareableBitmap PageClient::video_capture_frame(u64 capture_id)
+{
+    auto response = client().send_sync_but_allow_failure<Messages::WebContentClient::VideoCaptureFrame>(m_id, capture_id);
+    return response ? response->take_frame() : Gfx::ShareableBitmap {};
+}
+
+void PageClient::stop_video_capture(u64 capture_id)
+{
+    client().async_stop_video_capture(m_id, capture_id);
+}
+
 void PageClient::page_did_request_permission(u64 request_id, Utf16String const& name)
 {
     client().async_did_request_permission(m_id, request_id, name);

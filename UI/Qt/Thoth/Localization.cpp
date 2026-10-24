@@ -4,16 +4,19 @@
  */
 
 #include <LibWebView/Application.h>
+#include <UI/Qt/Icon.h>
 #include <UI/Qt/Thoth/Localization.h>
 
 #include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
+#include <QComboBox>
 #include <QGroupBox>
 #include <QHash>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
+#include <QSignalBlocker>
 #include <QTabWidget>
 #include <QTabBar>
 #include <QString>
@@ -29,6 +32,61 @@ static bool is_simplified_chinese()
 static QHash<QString, QString> const& simplified_chinese_translations()
 {
     static QHash<QString, QString> const translations {
+        { QStringLiteral("Reloading page"), QStringLiteral("正在刷新页面") },
+        { QStringLiteral("Updates"), QStringLiteral("更新") },
+        { QStringLiteral("Check for Updates…"), QStringLiteral("检查更新…") },
+        { QStringLiteral("Automatically Check for Updates"), QStringLiteral("自动检查更新") },
+        { QStringLiteral("Automatically Download Updates"), QStringLiteral("自动下载更新") },
+        { QStringLiteral("Restart and Install Update"), QStringLiteral("重启并安装更新") },
+        { QStringLiteral("Update Ready"), QStringLiteral("更新已就绪") },
+        { QStringLiteral("An update is ready. Restart to install it, or continue browsing and update later."), QStringLiteral("更新已下载并验证。可以重启安装，或继续浏览、稍后更新。") },
+        { QStringLiteral("Later"), QStringLiteral("稍后") },
+        { QStringLiteral("Wait for active downloads to finish before restarting to update."), QStringLiteral("请等待正在进行的下载完成后再重启更新。") },
+        { QStringLiteral("This build has no update feed. Install a release with updates configured."), QStringLiteral("此构建尚未配置更新源，请安装已配置更新源的发行版。") },
+        { QStringLiteral("Automatic updates are currently available on macOS."), QStringLiteral("自动更新目前支持 macOS。") },
+        { QStringLiteral("Connection is secure"), QStringLiteral("连接已加密") },
+        { QStringLiteral("Page information"), QStringLiteral("页面信息") },
+        { QStringLiteral("Mute tab"), QStringLiteral("静音此页面") },
+        { QStringLiteral("Unmute tab"), QStringLiteral("取消此页面静音") },
+        { QStringLiteral("Sleeping"), QStringLiteral("已休眠") },
+        { QStringLiteral("Find Open Page…"), QStringLiteral("查找已打开的页面…") },
+        { QStringLiteral("Find Open Page"), QStringLiteral("查找已打开的页面") },
+        { QStringLiteral("Search titles, URLs and workspaces"), QStringLiteral("搜索标题、网址和工作区") },
+        { QStringLiteral("No matching pages"), QStringLiteral("没有匹配的页面") },
+        { QStringLiteral("Site Settings…"), QStringLiteral("站点设置…") },
+        { QStringLiteral("Site Settings"), QStringLiteral("站点设置") },
+        { QStringLiteral("Sleep Background Pages"), QStringLiteral("休眠后台页面") },
+        { QStringLiteral("Sleep Page"), QStringLiteral("休眠此页面") },
+        { QStringLiteral("Close Active Split Pane"), QStringLiteral("关闭当前分屏页面") },
+        { QStringLiteral("Save Copy to Bookmarks"), QStringLiteral("保存副本到书签") },
+        { QStringLiteral("Copy Bookmarks to Sidebar…"), QStringLiteral("复制书签到侧边栏…") },
+        { QStringLiteral("Copy Bookmarks to Sidebar"), QStringLiteral("复制书签到侧边栏") },
+        { QStringLiteral("Copy to Workspace"), QStringLiteral("复制到工作区") },
+        { QStringLiteral("Copy to Favourites"), QStringLiteral("复制到收藏") },
+        { QStringLiteral("Bookmarks…"), QStringLiteral("管理书签…") },
+        { QStringLiteral("Export Workspaces…"), QStringLiteral("导出工作区…") },
+        { QStringLiteral("Import Workspaces…"), QStringLiteral("导入工作区…") },
+        { QStringLiteral("Camera"), QStringLiteral("摄像头") },
+        { QStringLiteral("Notifications"), QStringLiteral("通知") },
+        { QStringLiteral("Allow %1 to use your %2?"), QStringLiteral("允许 %1 使用你的%2吗？") },
+        { QStringLiteral("this page"), QStringLiteral("此页面") },
+        { QStringLiteral("Site Permissions"), QStringLiteral("站点权限") },
+        { QStringLiteral("Camera and microphone decisions are saved for this origin in this browser profile."), QStringLiteral("摄像头与麦克风权限会按站点保存在此浏览器配置中。") },
+        { QStringLiteral("Private-window decisions stay in memory until the private session ends."), QStringLiteral("无痕窗口的权限只保存在内存中，关闭无痕会话后清除。") },
+        { QStringLiteral("Changing or resetting a decision stops camera and microphone access and reloads this site's open pages. Location and autoplay controls are in Settings."), QStringLiteral("更改或重置权限会停止摄像头与麦克风访问，并重新加载此站点已打开的页面。定位与自动播放选项位于设置中。") },
+        { QStringLiteral("This page has no configurable website origin."), QStringLiteral("此页面没有可配置的站点来源。") },
+        { QStringLiteral("Unable to save the site permission. The previous decision is unchanged."), QStringLiteral("无法保存站点权限，原有设置保持不变。") },
+        { QStringLiteral("The decision could not be saved. It applies to this request only."), QStringLiteral("无法保存此决定，仅对本次请求生效。") },
+        { QStringLiteral("Microphone"), QStringLiteral("麦克风") },
+        { QStringLiteral("Ask Every Time"), QStringLiteral("每次询问") },
+        { QStringLiteral("Allow"), QStringLiteral("允许") },
+        { QStringLiteral("Block"), QStringLiteral("阻止") },
+        { QStringLiteral("Reset Site Permission"), QStringLiteral("重置站点权限") },
+        { QStringLiteral("Remember for this site"), QStringLiteral("记住此站点的决定") },
+        { QStringLiteral("Clear Cookies and Web Storage…"), QStringLiteral("清除此站点的 Cookie 和网页存储…") },
+        { QStringLiteral("Location, Autoplay and Privacy Settings…"), QStringLiteral("定位、自动播放与隐私设置…") },
+        { QStringLiteral("Camera / Notifications"), QStringLiteral("摄像头／通知") },
+        { QStringLiteral("Not supported by this browser yet"), QStringLiteral("此浏览器暂不支持") },
         { QStringLiteral("File"), QStringLiteral("文件") },
         { QStringLiteral("Edit"), QStringLiteral("编辑") },
         { QStringLiteral("View"), QStringLiteral("查看") },
@@ -278,6 +336,75 @@ static QString translated_property(QObject& object, char const* source_property,
 
 void localize_action(QAction& action)
 {
+    if (!action.isSeparator() && action.icon().isNull()) {
+        static QHash<QString, Ladybird::ChromeIcon> const icons {
+            { QStringLiteral("New Tab"), Ladybird::ChromeIcon::NewTab },
+            { QStringLiteral("Close"), Ladybird::ChromeIcon::Close },
+            { QStringLiteral("Close Tab"), Ladybird::ChromeIcon::Close },
+            { QStringLiteral("Close Pane"), Ladybird::ChromeIcon::Close },
+            { QStringLiteral("Close Left Pane"), Ladybird::ChromeIcon::Close },
+            { QStringLiteral("Close Right Pane"), Ladybird::ChromeIcon::Close },
+            { QStringLiteral("Close This Pane"), Ladybird::ChromeIcon::Close },
+            { QStringLiteral("Unload Page (Keep Pinned)"), Ladybird::ChromeIcon::Close },
+            { QStringLiteral("Open"), Ladybird::ChromeIcon::ExternalLink },
+            { QStringLiteral("Open File…"), Ladybird::ChromeIcon::File },
+            { QStringLiteral("New Window"), Ladybird::ChromeIcon::WindowMaximize },
+            { QStringLiteral("New Folder…"), Ladybird::ChromeIcon::FolderPlus },
+            { QStringLiteral("Move to Folder"), Ladybird::ChromeIcon::Folder },
+            { QStringLiteral("Remove Folder, Keep Pages"), Ladybird::ChromeIcon::Trash },
+            { QStringLiteral("Remove Workspace"), Ladybird::ChromeIcon::Trash },
+            { QStringLiteral("Delete"), Ladybird::ChromeIcon::Trash },
+            { QStringLiteral("Copy"), Ladybird::ChromeIcon::Copy },
+            { QStringLiteral("Copy Link"), Ladybird::ChromeIcon::Link },
+            { QStringLiteral("Copy URL"), Ladybird::ChromeIcon::Link },
+            { QStringLiteral("Paste"), Ladybird::ChromeIcon::Copy },
+            { QStringLiteral("History"), Ladybird::ChromeIcon::History },
+            { QStringLiteral("Bookmarks"), Ladybird::ChromeIcon::Book },
+            { QStringLiteral("Save Copy to Bookmarks"), Ladybird::ChromeIcon::Star },
+            { QStringLiteral("Move to Favourites"), Ladybird::ChromeIcon::Star },
+            { QStringLiteral("Pin Page"), Ladybird::ChromeIcon::Pin },
+            { QStringLiteral("Unpin to Temporary"), Ladybird::ChromeIcon::Unpin },
+            { QStringLiteral("Sleep Page"), Ladybird::ChromeIcon::Sleep },
+            { QStringLiteral("Mute tab"), Ladybird::ChromeIcon::VolumeMuted },
+            { QStringLiteral("Unmute tab"), Ladybird::ChromeIcon::Volume },
+            { QStringLiteral("Create Split View…"), Ladybird::ChromeIcon::Split },
+            { QStringLiteral("Swap Left and Right"), Ladybird::ChromeIcon::Split },
+            { QStringLiteral("Separate Pages"), Ladybird::ChromeIcon::Split },
+            { QStringLiteral("Settings"), Ladybird::ChromeIcon::Settings },
+            { QStringLiteral("Preferences…"), Ladybird::ChromeIcon::Settings },
+            { QStringLiteral("Appearance"), Ladybird::ChromeIcon::Settings },
+            { QStringLiteral("Organize Pages"), Ladybird::ChromeIcon::Folder },
+            { QStringLiteral("Workspaces"), Ladybird::ChromeIcon::Orbit },
+            { QStringLiteral("Move to Workspace"), Ladybird::ChromeIcon::Orbit },
+            { QStringLiteral("New Workspace…"), Ladybird::ChromeIcon::NewTab },
+            { QStringLiteral("Find Open Page…"), Ladybird::ChromeIcon::Search },
+            { QStringLiteral("Find Open Page"), Ladybird::ChromeIcon::Search },
+            { QStringLiteral("Find in Page…"), Ladybird::ChromeIcon::Search },
+            { QStringLiteral("Downloads"), Ladybird::ChromeIcon::Download },
+            { QStringLiteral("Updates"), Ladybird::ChromeIcon::Update },
+            { QStringLiteral("Check for Updates…"), Ladybird::ChromeIcon::Update },
+            { QStringLiteral("Automatically Check for Updates"), Ladybird::ChromeIcon::Update },
+            { QStringLiteral("Automatically Download Updates"), Ladybird::ChromeIcon::Download },
+            { QStringLiteral("Restart and Install Update"), Ladybird::ChromeIcon::Update },
+            { QStringLiteral("Reopen Closed Tab"), Ladybird::ChromeIcon::History },
+            { QStringLiteral("Back"), Ladybird::ChromeIcon::Back },
+            { QStringLiteral("Forward"), Ladybird::ChromeIcon::Forward },
+            { QStringLiteral("Reload"), Ladybird::ChromeIcon::Reload },
+            { QStringLiteral("Camera"), Ladybird::ChromeIcon::Camera },
+            { QStringLiteral("Microphone"), Ladybird::ChromeIcon::Microphone },
+            { QStringLiteral("Page information"), Ladybird::ChromeIcon::Info },
+            { QStringLiteral("Website Settings…"), Ladybird::ChromeIcon::Settings },
+            { QStringLiteral("Site Settings…"), Ladybird::ChromeIcon::Settings },
+            { QStringLiteral("Help"), Ladybird::ChromeIcon::Help },
+            { QStringLiteral("About Thoth Browser"), Ladybird::ChromeIcon::Info },
+        };
+        auto text = action.property("ThothSourceActionText").toString();
+        if (text.isEmpty())
+            text = action.text();
+        text.remove('&');
+        if (auto it = icons.constFind(text); it != icons.constEnd())
+            action.setIcon(Ladybird::create_chrome_icon(it.value(), qApp->palette()));
+    }
     action.setText(translated_property(action, "ThothSourceActionText", "ThothLocalizedActionText", action.text()));
     action.setToolTip(translated_property(action, "ThothSourceActionToolTip", "ThothLocalizedActionToolTip", action.toolTip()));
 }
@@ -301,6 +428,14 @@ static void localize_widget(QWidget& widget)
         button->setText(translated_property(widget, "ThothSourceText", "ThothLocalizedText", button->text()));
     if (auto* label = qobject_cast<QLabel*>(&widget))
         label->setText(translated_property(widget, "ThothSourceText", "ThothLocalizedText", label->text()));
+    if (auto* combo = qobject_cast<QComboBox*>(&widget)) {
+        QSignalBlocker blocker(combo);
+        for (int i = 0; i < combo->count(); ++i) {
+            auto source_property = QByteArray("ThothSourceComboText_") + QByteArray::number(i);
+            auto result_property = QByteArray("ThothLocalizedComboText_") + QByteArray::number(i);
+            combo->setItemText(i, translated_property(*combo, source_property.constData(), result_property.constData(), combo->itemText(i)));
+        }
+    }
     if (auto* group = qobject_cast<QGroupBox*>(&widget))
         group->setTitle(translated_property(widget, "ThothSourceText", "ThothLocalizedText", group->title()));
     if (auto* line_edit = qobject_cast<QLineEdit*>(&widget))

@@ -335,6 +335,11 @@ private:
     virtual void page_did_cancel_geolocation_position_request(u64 request_id) override;
     virtual void page_did_start_geolocation_position_watch(u64 request_id) override;
     virtual void page_did_stop_geolocation_position_watch(u64 request_id) override;
+    virtual String camera_devices() override;
+    virtual u64 start_video_capture(String const&, String const&) override;
+    virtual bool configure_video_capture(u64, String const&) override;
+    virtual Gfx::ShareableBitmap video_capture_frame(u64) override;
+    virtual void stop_video_capture(u64) override;
     virtual void page_did_request_permission(u64 request_id, Utf16String const& name) override;
     virtual void page_did_finish_test(Utf16String const& text) override;
     virtual void page_did_set_test_timeout(double milliseconds) override;

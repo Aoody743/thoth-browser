@@ -219,9 +219,15 @@ static void with_replaced_image_paint_facts(Layout::ImageProvider const& image_p
 static void queue_video_paint_facts(HTML::HTMLVideoElement const& video_element)
 {
     Layout::RustFFI::FfiVideoPaintFacts facts {};
+    auto stream_frame = video_element.media_stream_frame();
     switch (video_element.current_representation()) {
     case HTML::HTMLVideoElement::Representation::FirstVideoFrame:
     case HTML::HTMLVideoElement::Representation::VideoFrame: {
+        if (stream_frame.has_value()) {
+            facts.representation = Layout::RustFFI::FfiVideoRepresentation::PosterFrame;
+            facts.poster_frame = &stream_frame.value();
+            break;
+        }
         facts.representation = Layout::RustFFI::FfiVideoRepresentation::VideoFrame;
         auto sink_handle = video_element.video_sink_handle();
         if (sink_handle.has_value() && video_element.natural_media_size().has_value()) {

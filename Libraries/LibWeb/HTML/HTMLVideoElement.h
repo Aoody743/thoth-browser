@@ -55,6 +55,8 @@ public:
     Representation current_representation() const;
 
     Optional<Gfx::DecodedImageFrame> current_decoded_image_frame() const;
+    void set_media_stream_frame(RefPtr<Gfx::Bitmap>);
+    Optional<Gfx::DecodedImageFrame> media_stream_frame() const;
 
 private:
     HTMLVideoElement(DOM::Document&, DOM::QualifiedName);

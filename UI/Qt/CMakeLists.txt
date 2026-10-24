@@ -98,9 +98,13 @@ target_sources(ladybird PRIVATE
     StringUtils.cpp
     Thoth/SplitView.cpp
     Thoth/Sidebar.cpp
+    Thoth/SidebarAccessibility.cpp
+    Thoth/SidebarTools.cpp
+    Thoth/SitePolicyStore.cpp
     Thoth/Localization.cpp
     Thoth/SidebarModel.cpp
     Tab.cpp
+    TabSiteSettings.cpp
     TabBar.cpp
     Thoth/Appearance.cpp
     WebContentView.cpp
@@ -130,6 +134,7 @@ if (APPLE)
     target_link_libraries(ladybird PRIVATE LibHTTP)
     target_sources(ladybird PRIVATE
         ApplicationIcon.mm
+        Thoth/CameraCapture.mm
         Conversions.mm
         DictionaryLookup.mm
         ExternalURLHandler.mm
@@ -143,9 +148,10 @@ if (APPLE)
         WebContentViewAccessibility.mm
         WebContentViewMac.mm
     )
-    target_link_libraries(ladybird PRIVATE Qt::GuiPrivate "-framework ApplicationServices" "-framework CFNetwork" "-framework Cocoa" "-framework IOSurface" "-framework QuartzCore")
+    target_link_libraries(ladybird PRIVATE Qt::GuiPrivate "-framework ApplicationServices" "-framework AVFoundation" "-framework CoreMedia" "-framework CoreVideo" "-framework CFNetwork" "-framework Cocoa" "-framework IOSurface" "-framework QuartzCore")
     set_source_files_properties(
         LadybirdAccessibilityElement.mm
+        Thoth/CameraCapture.mm
         SpellCheckerMac.mm
         WebContentViewAccessibility.mm
         PROPERTIES COMPILE_FLAGS "-fobjc-arc"
@@ -205,6 +211,12 @@ endif()
 if (HAS_DIRECTX)
     target_sources(ladybird PRIVATE WebContentViewWindows.cpp)
     target_link_libraries(ladybird PRIVATE Qt::GuiPrivate d3d11)
+endif()
+
+if(APPLE)
+    include("${LADYBIRD_SOURCE_DIR}/Meta/CMake/ThothUpdater.cmake")
+else()
+    target_sources(ladybird PRIVATE Thoth/Updater.cpp)
 endif()
 
 create_ladybird_bundle(ladybird)

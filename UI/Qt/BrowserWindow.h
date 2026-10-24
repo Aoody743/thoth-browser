@@ -188,7 +188,7 @@ public slots:
     void tab_audio_play_state_changed(int index, Web::HTML::AudioPlayState);
     Tab& new_tab_from_url(URL::URL const&, Web::HTML::ActivateTab, TabLocation);
     void activate_tab(int index);
-    bool definitely_close_tab(int index);
+    bool definitely_close_tab(int index, bool record_closed = true);
     void move_tab(int old_index, int new_index);
     void request_to_close_tab(int index);
     void request_to_close_current_tab();

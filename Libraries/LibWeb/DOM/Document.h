@@ -1991,6 +1991,8 @@ private:
 
     // https://html.spec.whatwg.org/multipage/dom.html#concept-document-policy-container
     mutable GC::Ptr<HTML::PolicyContainer> m_policy_container;
+    bool m_camera_policy_allows { true };
+    bool m_microphone_policy_allows { true };
 
     // https://html.spec.whatwg.org/multipage/interaction.html#visibility-state
     HTML::VisibilityState m_visibility_state { HTML::VisibilityState::Hidden };

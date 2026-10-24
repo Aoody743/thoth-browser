@@ -3,7 +3,11 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 #include "Sidebar.h"
+#include "SidebarGeometry.h"
+#include "SidebarRowActions.h"
 #include "Localization.h"
+#include "Updater.h"
+#include "SidebarAccessibility.h"
 #include <LibURL/InternalURLs.h>
 #include <LibWebView/Application.h>
 #include <LibWebView/Profile.h>
@@ -28,8 +32,8 @@
 #include <QFrame>
 #include <QGraphicsDropShadowEffect>
 #include <QGuiApplication>
-#include <QIconEngine>
 #include <QHBoxLayout>
+#include <QHeaderView>
 #include <QKeyEvent>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -193,8 +197,10 @@ public:
     }
     void paint(QPainter* painter, QStyleOptionViewItem const& option, QModelIndex const& index) const override
     {
+        if (index.column() != 0)
+            return;
         auto dark = Ladybird::ChromeStyle::is_dark(option.palette);
-        auto rect = option.rect.adjusted(-10, 1, -2, -1);
+        auto rect = sidebar_card_rect(option.rect);
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
         painter->setFont(option.font);
@@ -205,10 +211,7 @@ public:
                 rect.setTop(rect.top() + 10);
             }
             auto ink = dark ? QColor("#a39bad") : QColor("#8d8598");
-            painter->setPen(QPen(ink, 1.3, Qt::SolidLine, Qt::RoundCap));
-            auto center = QPoint(rect.left() + 16, rect.center().y());
-            painter->drawLine(center.x() - 4, center.y(), center.x() + 4, center.y());
-            painter->drawLine(center.x(), center.y() - 4, center.x(), center.y() + 4);
+            Ladybird::create_chrome_icon(Ladybird::ChromeIcon::NewTab, option.palette).paint(painter, QRect(rect.left() + 7, rect.center().y() - 9, 18, 18));
             painter->setPen(ink);
             painter->drawText(rect.adjusted(32, 0, -8, 0), Qt::AlignVCenter, Thoth::localized_text("New Tab"));
             painter->restore();
@@ -270,7 +273,7 @@ public:
                 }
                 if (n < icons.size())
                     paint_rounded_icon(painter, icons[n].value<QIcon>(), QRect(chip.x() + 6, chip.center().y() - 8, 16, 16));
-                auto text = chip.adjusted(26, 0, hovered && n == 1 ? -27 : -5, 0);
+                auto text = chip.adjusted(26, 0, -5, 0);
                 painter->setPen(dark ? QColor("#eeeaf6") : QColor("#34313f"));
                 painter->drawText(text, Qt::AlignVCenter | Qt::AlignLeft, metrics.elidedText(titles.value(n), Qt::ElideRight, text.width()));
                 painter->setPen(Qt::NoPen);
@@ -283,25 +286,12 @@ public:
                 painter->drawRoundedRect(rect, 8, 8);
             }
             auto folder = index.data(PAGE_ROLE).toString() == "folder";
-            auto text_rect = rect.adjusted(32, 0, hovered && !folder ? -34 : -9, 0);
+            auto text_rect = rect.adjusted(32, 0, -9, 0);
             if (folder) {
                 auto font = option.font;
                 font.setWeight(QFont::Medium);
                 painter->setFont(font);
-                painter->setPen(QPen(dark ? QColor("#a7a1b5") : QColor("#777082"), 1.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-                auto x = rect.left() + 12.0;
-                auto y = rect.center().y();
-                QPainterPath chevron;
-                if (index.data(EXPANDED_ROLE).toBool()) {
-                    chevron.moveTo(x - 3, y - 1.5);
-                    chevron.lineTo(x, y + 1.5);
-                    chevron.lineTo(x + 3, y - 1.5);
-                } else {
-                    chevron.moveTo(x - 1.5, y - 3);
-                    chevron.lineTo(x + 1.5, y);
-                    chevron.lineTo(x - 1.5, y + 3);
-                }
-                painter->drawPath(chevron);
+                Ladybird::create_chrome_icon(index.data(EXPANDED_ROLE).toBool() ? Ladybird::ChromeIcon::ChevronDown : Ladybird::ChromeIcon::ChevronRight, option.palette).paint(painter, QRect(rect.left() + 4, rect.center().y() - 8, 16, 16));
                 text_rect.setLeft(rect.left() + 26);
             } else {
                 paint_rounded_icon(painter, index.data(Qt::DecorationRole).value<QIcon>(), QRect(rect.left() + 9, rect.center().y() - 9, 18, 18));
@@ -310,15 +300,6 @@ public:
             painter->drawText(text_rect, Qt::AlignVCenter | Qt::AlignLeft, QFontMetrics(painter->font()).elidedText(index.data().toString(), Qt::ElideRight, text_rect.width()));
             if (!folder && loading_pages.contains(page_ids.value(0)))
                 draw_loading_ring(QRectF(rect), 8);
-        }
-        if (hovered && index.data(PAGE_ROLE).toString() != "folder") {
-            auto close_rect = QRect(rect.right() - 28, rect.center().y() - 11, 22, 22);
-            painter->setPen(Qt::NoPen);
-            painter->setBrush(dark ? QColor("#514c5b") : QColor("#d8d3df"));
-            painter->drawEllipse(close_rect);
-            painter->setPen(QPen(dark ? QColor("#e8e4ed") : QColor("#514b59"), 1.35, Qt::SolidLine, Qt::RoundCap));
-            painter->drawLine(close_rect.center() + QPoint(-3, -3), close_rect.center() + QPoint(3, 3));
-            painter->drawLine(close_rect.center() + QPoint(3, -3), close_rect.center() + QPoint(-3, 3));
         }
         painter->restore();
     }
@@ -705,140 +686,12 @@ protected:
         painter.setBrush(QColor(accent.red(), accent.green(), accent.blue(), 18));
         painter.drawRoundedRect(bounds, 9, 9);
         if (count() == 0) {
-            QPainterPath star;
-            auto center = QPointF(bounds.center());
-            constexpr auto pi = 3.14159265358979323846;
-            for (int point = 0; point < 10; ++point) {
-                auto angle = -pi / 2.0 + point * pi / 5.0;
-                auto radius = point % 2 == 0 ? 8.0 : 3.8;
-                auto position = center + QPointF(std::cos(angle) * radius, std::sin(angle) * radius);
-                if (point == 0)
-                    star.moveTo(position);
-                else
-                    star.lineTo(position);
-            }
-            star.closeSubpath();
-            painter.setPen(Qt::NoPen);
-            painter.setBrush(accent);
-            painter.drawPath(star);
+            Ladybird::create_chrome_icon(Ladybird::ChromeIcon::StarFilled, palette()).paint(&painter, QRect(bounds.center() - QPoint(10, 10), QSize(20, 20)));
         }
     }
 
 private:
     bool m_drop_hover { false };
-};
-class WorkspaceIconEngine final : public QIconEngine {
-public:
-    WorkspaceIconEngine(QString symbol, QColor color)
-        : m_symbol(std::move(symbol))
-        , m_color(std::move(color))
-    {
-    }
-
-    QIconEngine* clone() const override
-    {
-        return new WorkspaceIconEngine(m_symbol, m_color);
-    }
-
-    QSize actualSize(QSize const& size, QIcon::Mode, QIcon::State) override
-    {
-        return size;
-    }
-
-    // Qt's default QIconEngine::pixmap()/scaledPixmap() can hand back an
-    // uninitialized pixmap for engines that only implement paint(), which shows
-    // up as random colored noise behind the symbol on Windows. Fill the buffer
-    // ourselves so the icon always has a clean alpha background.
-    QPixmap pixmap(QSize const& size, QIcon::Mode mode, QIcon::State state) override
-    {
-        QPixmap result(size);
-        result.fill(Qt::transparent);
-        QPainter painter(&result);
-        paint(&painter, QRect(QPoint(0, 0), size), mode, state);
-        return result;
-    }
-
-    QPixmap scaledPixmap(QSize const& size, QIcon::Mode mode, QIcon::State state, qreal scale) override
-    {
-        auto pixel_width = qMax(1, qRound(size.width() * scale));
-        auto pixel_height = qMax(1, qRound(size.height() * scale));
-        QPixmap result(pixel_width, pixel_height);
-        result.setDevicePixelRatio(scale);
-        result.fill(Qt::transparent);
-        QPainter painter(&result);
-        painter.scale(scale, scale);
-        paint(&painter, QRect(QPoint(0, 0), size), mode, state);
-        return result;
-    }
-
-    void paint(QPainter* painter, QRect const& rect, QIcon::Mode mode, QIcon::State) override
-    {
-        if (!painter || rect.isEmpty())
-            return;
-
-        auto color = m_color;
-        if (color.lightness() < 105)
-            color = color.lighter(155);
-        else if (color.lightness() > 220)
-            color = color.darker(155);
-        if (mode == QIcon::Disabled)
-            color.setAlpha(105);
-
-        painter->save();
-        // QIcon may render an engine into a reused pixmap. Clear the icon's
-        // transparent area first so stale pixels cannot appear as colored
-        // speckles around the workspace glyph.
-        painter->setCompositionMode(QPainter::CompositionMode_Source);
-        painter->fillRect(rect, Qt::transparent);
-        painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
-        painter->setRenderHint(QPainter::Antialiasing, true);
-        painter->translate(rect.topLeft());
-        painter->scale(rect.width() / 20.0, rect.height() / 20.0);
-        painter->setPen(QPen(color, 1.55, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter->setBrush(Qt::NoBrush);
-
-        if (m_symbol == "book") {
-            QPainterPath pages;
-            pages.moveTo(4.6, 5.3);
-            pages.cubicTo(6.8, 4.6, 8.7, 5.2, 10, 6.2);
-            pages.cubicTo(11.3, 5.2, 13.2, 4.6, 15.4, 5.3);
-            pages.lineTo(15.4, 14.5);
-            pages.cubicTo(13.2, 13.8, 11.3, 14.4, 10, 15.4);
-            pages.cubicTo(8.7, 14.4, 6.8, 13.8, 4.6, 14.5);
-            pages.closeSubpath();
-            painter->drawPath(pages);
-            painter->drawLine(QPointF(10, 6.2), QPointF(10, 15.1));
-            painter->drawLine(QPointF(6.2, 7.6), QPointF(8.1, 7.9));
-            painter->drawLine(QPointF(11.9, 7.9), QPointF(13.8, 7.6));
-        } else if (m_symbol == "diamond") {
-            QPainterPath diamond;
-            diamond.moveTo(10, 3.9);
-            diamond.lineTo(16.1, 10);
-            diamond.lineTo(10, 16.1);
-            diamond.lineTo(3.9, 10);
-            diamond.closeSubpath();
-            painter->drawPath(diamond);
-            painter->drawLine(QPointF(6.6, 6.6), QPointF(10, 16.1));
-            painter->drawLine(QPointF(13.4, 6.6), QPointF(10, 16.1));
-        } else if (m_symbol == "globe") {
-            painter->drawEllipse(QRectF(3.9, 3.9, 12.2, 12.2));
-            painter->drawEllipse(QRectF(7.2, 3.9, 5.6, 12.2));
-            painter->drawArc(QRectF(4.5, 6.5, 11, 7), 0, 180 * 16);
-            painter->drawArc(QRectF(4.5, 6.5, 11, 7), 180 * 16, 180 * 16);
-        } else {
-            painter->drawEllipse(QRectF(8.5, 8.5, 3, 3));
-            painter->save();
-            painter->translate(10, 10);
-            painter->rotate(-30);
-            painter->drawEllipse(QRectF(-7.1, -2.7, 14.2, 5.4));
-            painter->restore();
-        }
-        painter->restore();
-    }
-
-private:
-    QString m_symbol;
-    QColor m_color;
 };
 
 static QIcon workspace_icon(Workspace const& space, bool)
@@ -846,14 +699,15 @@ static QIcon workspace_icon(Workspace const& space, bool)
     auto color = QColor(space.color);
     if (!color.isValid())
         color = QColor("#b9a5df");
-    QPixmap pixmap(40, 40);
-    pixmap.setDevicePixelRatio(2);
-    pixmap.fill(Qt::transparent);
-    QPainter painter(&pixmap);
-    WorkspaceIconEngine engine(space.symbol, color);
-    engine.paint(&painter, QRect(0, 0, 20, 20), QIcon::Normal, QIcon::Off);
-    painter.end();
-    return QIcon(pixmap);
+    if (color.lightness() < 105)
+        color = color.lighter(155);
+    else if (color.lightness() > 220)
+        color = color.darker(155);
+    auto name = space.symbol == "book" ? "book-open" : space.symbol == "diamond" ? "diamond" : space.symbol == "globe" ? "globe" : "orbit";
+    QIcon icon;
+    for (auto ratio : Ladybird::ICON_DEVICE_PIXEL_RATIOS)
+        icon.addPixmap(Ladybird::library_icon_pixmap(name, color, { 20, 20 }, ratio));
+    return icon;
 }
 static QIcon workspace_color_swatch(QString const& color)
 {
@@ -1012,6 +866,7 @@ Sidebar::Sidebar(Ladybird::TabWidget& tabs, QStackedWidget& navigation)
     connect(m_space_header, &QToolButton::clicked, this, [this] { workspace_menu(m_model.active_workspace, m_space_header->mapToGlobal(QPoint(0, m_space_header->height()))); });
     connect(m_space_header, &QWidget::customContextMenuRequested, this, [this](QPoint p) { workspace_menu(m_model.active_workspace, m_space_header->mapToGlobal(p)); });
     body->addWidget(m_space_header);
+    connect(favourites, &QListWidget::itemActivated, this, [this](auto* i) { activate(i->data(ID_ROLE).toString()); });
     connect(favourites, &QListWidget::itemClicked, this, [this](auto* i) {
         auto id = i->data(ID_ROLE).toString();
         if (id.isEmpty()) {
@@ -1022,10 +877,15 @@ Sidebar::Sidebar(Ladybird::TabWidget& tabs, QStackedWidget& navigation)
     });
     connect(favourites, &QWidget::customContextMenuRequested, this, [this](QPoint p) { auto* i = m_favourites->itemAt(p); context_menu(i ? i->data(ID_ROLE).toString() : QString {}, m_favourites->viewport()->mapToGlobal(p)); });
     favourites->on_drop = [this](QString id, QString before) { drop_item(id, "favourite", {}, before); };
+    install_sidebar_accessibility();
     auto* tree = new SidebarTree(this);
     m_tree = tree;
     tree->setObjectName("ThothPageTree");
-    tree->setColumnCount(1);
+    tree->setColumnCount(2);
+    tree->header()->setStretchLastSection(false);
+    tree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    tree->header()->setSectionResizeMode(1, QHeaderView::Fixed);
+    tree->setColumnWidth(1, 30);
     tree->setAccessibleName("Pages and Folders");
     tree->setItemDelegate(new SidebarDelegate(tree));
     tree->setHeaderHidden(true);
@@ -1097,6 +957,15 @@ Sidebar::Sidebar(Ladybird::TabWidget& tabs, QStackedWidget& navigation)
             pane = entry->pages[QCursor::pos().x() - m_tree->viewport()->mapToGlobal(rect.topLeft()).x() < rect.width() / 2 ? 0 : 1];
         }
         activate(id, pane);
+    });
+    connect(tree, &QTreeWidget::itemActivated, this, [this](QTreeWidgetItem* node, int) {
+        if (node->data(0, ACTION_ROLE).toString() == "newtab") {
+            new_page();
+            return;
+        }
+        auto id = node->data(0, ID_ROLE).toString();
+        if (auto* entry = m_model.item(id); entry && !entry->folder)
+            activate(id);
     });
     connect(tree, &QTreeWidget::itemExpanded, this, [this](auto* node) { if (auto* i = m_model.item(node->data(0, ID_ROLE).toString()); i && i->folder) { i->expanded = true; node->setData(0, EXPANDED_ROLE, true); save(); } });
     connect(tree, &QTreeWidget::itemCollapsed, this, [this](auto* node) { if (auto* i = m_model.item(node->data(0, ID_ROLE).toString()); i && i->folder) { i->expanded = false; node->setData(0, EXPANDED_ROLE, false); save(); } });
@@ -1215,6 +1084,13 @@ void Sidebar::set_browser_menu(QMenu& menu)
     if (menu.findChild<QMenu*>("ThothBrowserAppearanceMenu"))
         return;
 
+    add_tools_menu(menu);
+    Thoth::add_update_menu(menu, [] {
+        if (Ladybird::Application::the().file_downloader().has_active_downloads())
+            return false;
+        Sidebar::application_quitting(true);
+        return true;
+    }, [] { Sidebar::application_quitting(false); });
     menu.addSeparator();
     auto* appearance = menu.addMenu("Appearance");
     appearance->setObjectName("ThothBrowserAppearanceMenu");
@@ -1382,7 +1258,7 @@ QString Sidebar::label(SidebarItem const& item) const
     QStringList titles;
     for (auto const& pid : item.pages) {
         auto* p = const_cast<SidebarModel&>(m_model).page(pid);
-        titles.append(Thoth::localized_text(p && !p->title.isEmpty() ? p->title : QStringLiteral("New Tab")));
+        titles.append(Thoth::localized_text(p && !p->title.isEmpty() ? p->title : QStringLiteral("New Tab")) + (p && p->sleeping ? QStringLiteral(" · ") + localized_text("Sleeping") : QString {}));
     }
     return titles.join("  /  ");
 }
@@ -1394,6 +1270,8 @@ void Sidebar::rebuild()
         icons += QByteArray::number(icon(p.id).cacheKey());
         auto* tab = m_live.value(p.id).data();
         icons += tab && tab->is_loading() ? '1' : '0';
+        icons += tab && tab->view().audio_play_state() == Web::HTML::AudioPlayState::Playing ? '1' : '0';
+        icons += tab && tab->view().page_mute_state() == Web::HTML::MuteState::Muted ? '1' : '0';
     }
     if (m_last_render == json + icons)
         return;
@@ -1403,13 +1281,14 @@ void Sidebar::rebuild()
     QSignalBlocker favourite_blocker(m_favourites);
     static_cast<SidebarTree*>(m_tree)->reset_drop_target();
     m_tree->clear();
+    m_tree->setColumnWidth(1, 30);
     m_favourites->clear();
     auto* pinned = new QTreeWidgetItem(m_tree);
     pinned->setData(0, SECTION_ROLE, "pinned");
     pinned->setFlags(Qt::ItemIsEnabled | Qt::ItemIsDropEnabled);
     pinned->setData(0, DROP_SLOT_ROLE, true);
     pinned->setExpanded(true);
-    auto* new_tab = new QTreeWidgetItem(m_tree, { "New Tab" });
+    auto* new_tab = new QTreeWidgetItem(m_tree, { localized_text("New Tab") });
     new_tab->setData(0, ACTION_ROLE, "newtab");
     new_tab->setData(0, SECTION_ROLE, "temporary");
     new_tab->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDropEnabled);
@@ -1427,6 +1306,7 @@ void Sidebar::rebuild()
             favourite->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
             favourite->setData(ID_ROLE, i.id);
             favourite->setToolTip(label(i));
+            favourite->setData(Qt::AccessibleTextRole, label(i));
             favourite->setSizeHint({ 68, 54 });
             favourite->setTextAlignment(Qt::AlignCenter);
             if (i.id == m_model.active)
@@ -1438,6 +1318,7 @@ void Sidebar::rebuild()
         nodes[i.id] = node;
         node->setText(0, label(i));
         node->setToolTip(0, label(i));
+        node->setData(0, Qt::AccessibleTextRole, label(i));
         node->setData(0, ID_ROLE, i.id);
         node->setData(0, PAGE_IDS_ROLE, i.pages);
         node->setData(0, SECTION_ROLE, i.section);
@@ -1472,13 +1353,44 @@ void Sidebar::rebuild()
         node->setExpanded(i.folder ? i.expanded : i.pages.size() == 2);
         if (i.pages.size() == 2) {
             node->setData(0, GROUP_ROLE, i.pages);
-            node->setData(0, TITLES_ROLE, QStringList { m_model.page(i.pages[0])->title, m_model.page(i.pages[1])->title });
+            QStringList titles;
+            for (auto const& pid : i.pages) {
+                auto* page = m_model.page(pid);
+                titles.append(page->title + (page->sleeping ? QStringLiteral(" · ") + localized_text("Sleeping") : QString {}));
+            }
+            node->setData(0, TITLES_ROLE, titles);
             node->setData(0, ICONS_ROLE, QVariantList { icon(i.pages[0]), icon(i.pages[1]) });
             node->setData(0, ACTIVE_ROLE, i.active);
             node->setSizeHint(0, { 0, 44 });
         }
         if (i.id == m_model.active)
             node->setSelected(true);
+        if (!i.folder) {
+            auto* actions = new SidebarRowActions(m_tree, node, Ladybird::create_chrome_icon(Ladybird::ChromeIcon::TabClose, palette()), localized_text("Close Tab") + " · " + label(i));
+            connect(actions->close_button(), &QToolButton::clicked, this, [this, id = i.id] { close_item(id); });
+            m_tree->setItemWidget(node, 1, actions);
+            for (auto const& pid : i.pages) {
+                auto* tab = m_live.value(pid).data();
+                if (!tab || (tab->view().audio_play_state() != Web::HTML::AudioPlayState::Playing && tab->view().page_mute_state() != Web::HTML::MuteState::Muted))
+                    continue;
+                auto* mute = new QToolButton(actions);
+                bool muted = tab->view().page_mute_state() == Web::HTML::MuteState::Muted;
+                mute->setIcon(Ladybird::create_chrome_icon(muted ? Ladybird::ChromeIcon::VolumeMuted : Ladybird::ChromeIcon::Volume, palette()));
+                auto text = localized_text(muted ? "Unmute tab" : "Mute tab") + " · " + tab->title();
+                mute->setToolTip(text);
+                mute->setAccessibleName(text);
+                mute->setAutoRaise(true);
+                mute->setFocusPolicy(Qt::StrongFocus);
+                connect(mute, &QToolButton::clicked, this, [this, pid] {
+                    if (auto* live = m_live.value(pid).data())
+                        live->view().toggle_page_mute_state();
+                    rebuild();
+                });
+                actions->add_audio_button(mute);
+                m_tree->setColumnWidth(1, 56);
+                break;
+            }
+        }
     }
     pinned->setData(0, DROP_SLOT_ROLE, pinned->childCount() == 0);
     temporary->setData(0, DROP_SLOT_ROLE, temporary->childCount() == 0);
@@ -1492,7 +1404,7 @@ void Sidebar::rebuild()
     m_favourites->setVisible(has_favourites || m_dragging_sidebar_item);
     m_favourites->setFixedHeight(has_favourites ? std::clamp(((m_favourites->count() + 2) / 3) * 60, 60, 180) : m_dragging_sidebar_item ? 60 : 0);
     m_tree->doItemsLayout();
-    QAccessibleTableModelChangeEvent accessibility_update(m_tree, QAccessibleTableModelChangeEvent::ModelReset);
+    QAccessibleEvent accessibility_update(m_tree, QAccessible::ObjectReorder);
     QAccessible::updateAccessibility(&accessibility_update);
     m_tree->verticalScrollBar()->setValue(scroll);
     m_body->setVisible(!m_model.collapsed || m_hover_revealed);
@@ -1524,6 +1436,7 @@ Ladybird::Tab* Sidebar::ensure_page(QString const& id)
     auto* p = m_model.page(id);
     if (!p)
         return nullptr;
+    p->sleeping = false;
     auto url = p->url;
     m_next_page_id = id;
     auto& tab = browser().create_new_tab(Web::HTML::ActivateTab::No, Ladybird::BrowserWindow::TabLocation::end());
@@ -1616,25 +1529,44 @@ void Sidebar::choose_split()
         context_menu(id, mapToGlobal(QPoint(width(), 60)));
         return;
     }
-    QMenu menu(this);
-    auto* blank = menu.addAction("Split with New Page");
-    QHash<QAction*, QString> candidates;
-    menu.addSeparator();
+    auto* dialog = new QDialog(this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setObjectName("ThothSplitChooser");
+    dialog->setWindowTitle("Split View");
+    dialog->resize(480, 320);
+    auto* layout = new QVBoxLayout(dialog);
+    auto* choices = new QListWidget(dialog);
+    choices->setAccessibleName("Second split page");
+    choices->addItem("Split with New Page");
     for (auto const& candidate : m_model.items) {
-        if (!candidate.folder && m_model.is_visible(candidate) && candidate.id != id && candidate.pages.size() == 1)
-            candidates[menu.addAction(icon(candidate.pages.first()), label(candidate))] = candidate.id;
+        if (!candidate.folder && m_model.is_visible(candidate) && candidate.id != id && candidate.pages.size() == 1) {
+            auto* row = new QListWidgetItem(icon(candidate.pages.first()), label(candidate), choices);
+            row->setData(Qt::UserRole, candidate.id);
+        }
     }
-    Thoth::localize_menu(menu);
-    auto* selected = menu.exec(mapToGlobal(QPoint(width(), 60)));
-    QString second;
-    if (selected == blank) {
-        auto& tab = browser().new_tab_from_url(URL::about_blank(), Web::HTML::ActivateTab::No, Ladybird::BrowserWindow::TabLocation::end());
-        if (auto* added = m_model.item_for_page(page_id(&tab)))
-            second = added->id;
-    } else
-        second = candidates.value(selected);
-    if (m_model.merge(id, second))
-        activate(id);
+    choices->setCurrentRow(0);
+    layout->addWidget(choices);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, dialog);
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
+    auto split = [this, id, choices, dialog] {
+        auto* original = m_model.item(id);
+        if (!original || original->pages.size() != 1 || !choices->currentItem())
+            return;
+        auto second = choices->currentItem()->data(Qt::UserRole).toString();
+        if (choices->currentRow() == 0) {
+            auto& tab = browser().new_tab_from_url(URL::about_blank(), Web::HTML::ActivateTab::No, Ladybird::BrowserWindow::TabLocation::end());
+            if (auto* added = m_model.item_for_page(page_id(&tab)))
+                second = added->id;
+        }
+        if (m_model.merge(id, second))
+            activate(id);
+        dialog->accept();
+    };
+    connect(buttons, &QDialogButtonBox::accepted, dialog, split);
+    connect(choices, &QListWidget::itemActivated, dialog, [split] { split(); });
+    Thoth::localize_widget_tree(*dialog);
+    dialog->open();
 }
 void Sidebar::close_item(QString const& id, QString pane)
 {
@@ -1727,6 +1659,21 @@ void Sidebar::context_menu(QString const& id, QPoint point, QString pane)
     if (entry && !entry->folder) {
         auto* open = menu.addAction("Open");
         connect(open, &QAction::triggered, this, [this, id, pane] { activate(id, pane); });
+        auto pid = entry->pages.contains(pane) ? pane : entry->active;
+        if (auto* tab = m_live.value(pid).data()) {
+            auto* mute = menu.addAction(tab->view().page_mute_state() == Web::HTML::MuteState::Muted ? "Unmute tab" : "Mute tab");
+            connect(mute, &QAction::triggered, this, [this, pid] {
+                if (auto* live = m_live.value(pid).data())
+                    live->view().toggle_page_mute_state();
+                rebuild();
+            });
+        }
+        auto* bookmark = menu.addAction("Save Copy to Bookmarks");
+        connect(bookmark, &QAction::triggered, this, [this, pid] { bookmark_page(pid); });
+        auto* sleep = menu.addAction("Sleep Page");
+        auto* live = m_live.value(pid).data();
+        sleep->setEnabled(live && entry->id != m_model.active && live->can_sleep());
+        connect(sleep, &QAction::triggered, this, [this, pid] { sleep_page(pid); });
         if (entry->pages.size() == 1) {
             auto* favourite = menu.addAction("Move to Favourites");
             connect(favourite, &QAction::triggered, this, [this, id] { drop_item(id, "favourite", {}); });
@@ -2246,14 +2193,6 @@ bool Sidebar::eventFilter(QObject* object, QEvent* event)
         auto position = mouse->position().toPoint();
         auto* item = m_tree->itemAt(position);
         auto id = item ? item->data(0, ID_ROLE).toString() : QString {};
-        if (!id.isEmpty() && item->data(0, PAGE_ROLE).toString() != "folder") {
-            auto row = m_tree->visualItemRect(item);
-            if (position.x() >= row.right() - 34 && position.x() <= row.right() && position.y() >= row.top() && position.y() <= row.bottom()) {
-                close_item(id);
-                mouse->accept();
-                return true;
-            }
-        }
         auto has_action = item && !item->data(0, ACTION_ROLE).toString().isEmpty();
         auto has_item = !id.isEmpty();
         if (!has_action && !has_item && browser().start_window_move()) {
@@ -2397,7 +2336,8 @@ void Sidebar::new_page()
     auto* input_row = new QHBoxLayout;
     input_row->setContentsMargins(10, 0, 10, 0);
     input_row->setSpacing(8);
-    auto* search_glyph = new QLabel("⌕", card);
+    auto* search_glyph = new QLabel(card);
+    search_glyph->setPixmap(Ladybird::create_chrome_icon(Ladybird::ChromeIcon::Search, palette()).pixmap(20, 20));
     search_glyph->setObjectName("ThothNewTabGlyph");
     input_row->addWidget(search_glyph);
     auto* address = new NewTabAddressEdit(card);
@@ -2689,9 +2629,12 @@ void Sidebar::load_window(QJsonObject const& json)
     auto pages = m_model.pages;
     for (auto const& p : pages) {
         auto* item = m_model.item_for_page(p.id);
-        if (!item || !m_model.is_visible(*item) || (item->section != "temporary" && item->id != m_model.active))
+        // Restore only the selected logical item (both panes of a split).
+        // All other sidebar entries retain metadata and allocate no renderer.
+        if (!item || item->id != m_model.active)
             continue;
         if (startup_tab && p.id == active_page) {
+            m_model.page(p.id)->sleeping = false;
             m_live[p.id] = startup_tab;
             reused_startup_tab = startup_tab;
             auto page_url = p.url == "about:newtab" ? QStringLiteral("about:blank") : p.url;

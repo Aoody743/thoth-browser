@@ -204,6 +204,11 @@ void HTMLMediaElement::finalize()
 {
     Base::finalize();
 
+    if (m_media_stream_frame_timer) {
+        m_media_stream_frame_timer->stop();
+        m_media_stream_frame_timer = nullptr;
+    }
+
     m_screen_wake_lock.clear();
 
     if (m_playback_manager) {
@@ -802,6 +807,13 @@ GC::Ref<TextTrack> HTMLMediaElement::add_text_track(Bindings::TextTrackKind kind
 // https://html.spec.whatwg.org/multipage/media.html#media-element-load-algorithm
 WebIDL::ExceptionOr<void> HTMLMediaElement::load_element()
 {
+    if (m_media_stream_frame_timer) {
+        m_media_stream_frame_timer->stop();
+        m_media_stream_frame_timer = nullptr;
+    }
+    if (auto* video = as_if<HTMLVideoElement>(this))
+        video->set_media_stream_frame(nullptr);
+
     m_first_data_load_event_since_load_start = true;
 
     // FIXME: 1. Set this element's is currently stalled to false.
@@ -1751,8 +1763,17 @@ void HTMLMediaElement::load_local_resource(MediaProvider const& media_provider, 
             }
         },
         [&](GC::Ref<MediaCapture::MediaStream>) {
-            // FIXME: Support MediaStream objects.
-            failure_callback("MediaStream objects are not supported"_utf16);
+            // Device streams are already decoded and never enter MediaServer's demuxer.
+            // Retain the stream through srcObject, while the timer only weakly references
+            // this element so a detached preview remains reclaimable.
+            m_network_state = NetworkState::Idle;
+            m_delaying_the_load_event.clear();
+            set_duration(INFINITY);
+            m_media_stream_frame_timer = Core::Timer::create_repeating(16, GC::weak_callback(*this, [](auto& self) {
+                self.update_media_stream_frame();
+            }));
+            m_media_stream_frame_timer->start();
+            update_media_stream_frame();
         },
         [&](GC::Ref<FileAPI::Blob>) {
             // FIXME: Support File objects.
@@ -2497,6 +2518,30 @@ void HTMLMediaElement::set_audio_track_enabled(Badge<AudioTrack>, GC::Ptr<HTML::
 
     update_audio_play_state();
     update_screen_wake_lock();
+}
+
+void HTMLMediaElement::update_media_stream_frame()
+{
+    if (!document().is_fully_active() || !m_assigned_media_provider_object.has<GC::Ref<MediaCapture::MediaStream>>())
+        return;
+    auto* video = as_if<HTMLVideoElement>(this);
+    if (!video)
+        return;
+    auto stream = m_assigned_media_provider_object.get<GC::Ref<MediaCapture::MediaStream>>();
+    for (auto const& track : stream->get_video_tracks()) {
+        auto frame = track->video_frame();
+        if (!frame)
+            continue;
+        // A paused element keeps the last displayed frame; the first frame is still
+        // exposed so metadata, sizing and canvas capture work before play().
+        if (!paused() || ready_state() < ReadyState::HaveCurrentData)
+            video->set_media_stream_frame(move(frame));
+        if (m_ready_state == ReadyState::HaveNothing)
+            set_ready_state(ReadyState::HaveMetadata);
+        if (m_ready_state < ReadyState::HaveEnoughData)
+            set_ready_state(ReadyState::HaveEnoughData);
+        return;
+    }
 }
 
 Optional<Media::VideoSinkHandle> HTMLMediaElement::video_sink_handle() const
@@ -3902,6 +3947,9 @@ bool HTMLMediaElement::has_ended_playback(IgnoreLoopAttribute ignore_loop_attrib
     // The element's readyState attribute is HAVE_METADATA or greater, and
     if (m_ready_state < ReadyState::HaveMetadata)
         return false;
+
+    if (m_assigned_media_provider_object.has<GC::Ref<MediaCapture::MediaStream>>())
+        return !m_assigned_media_provider_object.get<GC::Ref<MediaCapture::MediaStream>>()->active();
 
     VERIFY(m_playback_manager != nullptr);
     // Either:

@@ -1,5 +1,6 @@
 set(TEST_SOURCES
     BenchmarkDisplayListRecording.cpp
+    TestCameraConstraints.cpp
     TestAudioWorkletPipe.cpp
     TestContentBlocker.cpp
     TestControlMessageQueue.cpp

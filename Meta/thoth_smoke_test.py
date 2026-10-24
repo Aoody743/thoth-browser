@@ -14,9 +14,7 @@ import sys
 from pathlib import Path
 
 
-EXPECTED_VERSION = "0.9.1"
-EXPECTED_DISPLAY_VERSION = "0.9.1"
-EXPECTED_BUNDLE_VERSION = "0.9.1"
+EXPECTED_VERSION = "0.9.2"
 EXPECTED_IDENTIFIER = "thoth.aoody"
 EXPECTED_EXECUTABLE = "Thoth Browser"
 EXPECTED_MINIMUM_MACOS_VERSION = "14.4"
@@ -56,7 +54,7 @@ def main() -> int:
         "CFBundleIdentifier": EXPECTED_IDENTIFIER,
         "CFBundleExecutable": EXPECTED_EXECUTABLE,
         "CFBundleShortVersionString": EXPECTED_VERSION,
-        "CFBundleVersion": EXPECTED_BUNDLE_VERSION,
+
         "LSMinimumSystemVersion": EXPECTED_MINIMUM_MACOS_VERSION,
     }
     for key, expected in checks.items():
@@ -67,7 +65,10 @@ def main() -> int:
         result = subprocess.run([str(executable), "--version"], check=True, capture_output=True, text=True)
     except (OSError, subprocess.CalledProcessError) as error:
         fail(f"--version failed: {error}")
-    if result.stdout.strip() != f"Thoth Browser {EXPECTED_DISPLAY_VERSION}":
+    if not re.fullmatch(r"\d+(?:\.\d+)*", info.get("CFBundleVersion", "")):
+        fail("CFBundleVersion must be numeric and increase for each release")
+    expected_display = f"Thoth Browser {EXPECTED_VERSION} preview ({info['CFBundleVersion']})"
+    if result.stdout.strip() != expected_display:
         fail(f"unexpected --version output: {result.stdout.strip()!r}")
 
     try:
@@ -139,8 +140,16 @@ def main() -> int:
             fail(f"cannot inspect application entitlements: {error}")
         if entitlement_values.get("com.apple.security.get-task-allow"):
             fail("distribution signature contains the development-only get-task-allow entitlement")
+        if entitlement_values.get("com.apple.security.device.camera") is not True:
+            fail("hardened distribution signature is missing camera authorization")
+        if not (contents / "Frameworks/Sparkle.framework").is_dir():
+            fail("distribution package is missing Sparkle.framework")
+        if not (resources / "Sparkle-LICENSE").is_file():
+            fail("distribution package is missing the Sparkle license")
+        if not info.get("SUFeedURL", "").startswith("https://") or not info.get("SUPublicEDKey"):
+            fail("distribution package must contain its HTTPS update feed and verification key")
 
-    print(f"PASS: {app.name}, version {EXPECTED_VERSION}, bundle {EXPECTED_BUNDLE_VERSION}")
+    print(f"PASS: {app.name}, version {EXPECTED_VERSION}, bundle {info['CFBundleVersion']}")
     return 0
 
 

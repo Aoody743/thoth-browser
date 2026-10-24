@@ -103,6 +103,8 @@ GC::Ref<MediaStreamTrack> MediaStreamTrack::create(MediaStreamTrackKind kind, Op
 
     // [[Kind]]: "audio" if source is an audio source, or "video" if source is a video source.
     track->m_kind = kind;
+    if (kind == MediaStreamTrackKind::Video)
+        track->m_video_source = adopt_ref(*new VideoSource);
 
     // [[Label]]: source label or empty string.
     track->m_label = label.value_or({});
@@ -157,6 +159,7 @@ void MediaStreamTrack::stop()
     // For device-backed audio tracks this releases the capture stream.
     // FIXME: Model track sources properly so tracks sharing a source keep it alive.
     stop_audio_capture();
+    stop_video_capture();
 
     // 4. Set track's [[ReadyState]] to "ended".
     m_state = MediaStreamTrackState::Ended;
@@ -190,6 +193,7 @@ GC::Ref<MediaStreamTrack> MediaStreamTrack::clone() const
     // 5. FIXME: Set trackClone's [[Capabilities]] to a clone of track's [[Capabilities]].
     // 6. Set trackClone's [[Constraints]] to a clone of track's [[Constraints]].
     track_clone->m_constraints = m_constraints;
+    track_clone->m_capabilities = m_capabilities;
     // 7. Set trackClone's [[Settings]] to a clone of track's [[Settings]].
     track_clone->m_settings = m_settings;
 
@@ -198,7 +202,17 @@ GC::Ref<MediaStreamTrack> MediaStreamTrack::clone() const
     track_clone->update_audio_silence_state();
     track_clone->m_provider_id = s_next_provider_id.fetch_add(1, AK::MemoryOrder::memory_order_relaxed);
 
-    // FIXME: 8. Run source MediaStreamTrack source-specific clone steps with track and trackClone as parameters.
+    if (m_video_source) {
+        // Keep the original track alive while its frame delivery callback feeds this shared source.
+        track_clone->m_video_source = m_video_source;
+        track_clone->m_video_source_track = m_video_source_track ? m_video_source_track : const_cast<MediaStreamTrack*>(this);
+        if (m_state == MediaStreamTrackState::Live)
+            ++m_video_source->live_tracks;
+        else
+            track_clone->m_video_source_released = true;
+    }
+
+    // FIXME: Share audio sources when cloning device-backed audio tracks.
 
     // 9. Return trackClone.
     return track_clone;
@@ -242,12 +256,20 @@ MediaTrackConstraints const& MediaStreamTrack::get_constraints() const
 // https://w3c.github.io/mediacapture-main/#dom-mediastreamtrack-getsettings
 MediaTrackSettings const& MediaStreamTrack::get_settings() const
 {
-    return m_settings;
+    return m_video_source_track ? m_video_source_track->m_settings : m_settings;
 }
 
 // https://w3c.github.io/mediacapture-main/#dom-mediastreamtrack-applyconstraints
 GC::Ref<WebIDL::Promise> MediaStreamTrack::apply_constraints(JS::Object const& relevant_global_object, Optional<MediaTrackConstraints> constraints)
 {
+    if (is_video() && m_state == MediaStreamTrackState::Live) {
+        auto* source = m_video_source_track ? m_video_source_track.ptr() : this;
+        if (source->on_apply_video_constraints) {
+            auto promise = WebIDL::create_promise(HTML::relevant_realm(relevant_global_object));
+            source->on_apply_video_constraints(constraints.value_or(MediaTrackConstraints {}), promise);
+            return promise;
+        }
+    }
     apply_constraints_impl(move(constraints));
     return WebIDL::create_resolved_promise_for(relevant_global_object, JS::js_undefined());
 }
@@ -350,6 +372,55 @@ void MediaStreamTrack::stop_audio_capture()
     m_audio_capture_stream = nullptr;
 }
 
+void MediaStreamTrack::set_video_frame(NonnullRefPtr<Gfx::Bitmap> frame)
+{
+    if (!m_video_source || m_video_source->live_tracks == 0)
+        return;
+    m_video_source->frame = move(frame);
+}
+
+RefPtr<Gfx::Bitmap> MediaStreamTrack::video_frame() const
+{
+    if (!m_video_source || m_state == MediaStreamTrackState::Ended || !m_video_source->frame)
+        return nullptr;
+    if (m_enabled && !m_muted)
+        return m_video_source->frame;
+    auto size = m_video_source->frame->size();
+    if (!m_black_video_frame || m_black_video_frame->size() != size) {
+        auto bitmap = Gfx::Bitmap::create(Gfx::BitmapFormat::BGRx8888, size);
+        if (bitmap.is_error())
+            return nullptr;
+        m_black_video_frame = bitmap.release_value();
+        for (int y = 0; y < size.height(); ++y) {
+            for (int x = 0; x < size.width(); ++x)
+                m_black_video_frame->set_pixel(x, y, Gfx::Color::Black);
+        }
+    }
+    return m_black_video_frame;
+}
+
+void MediaStreamTrack::stop_video_capture()
+{
+    if (!m_video_source || m_video_source_released)
+        return;
+    m_video_source_released = true;
+    if (on_video_capture_stopped)
+        m_video_source->on_stopped = move(on_video_capture_stopped);
+    if (--m_video_source->live_tracks == 0) {
+        m_video_source->frame = nullptr;
+        if (m_video_source->on_stopped) {
+            auto callback = move(m_video_source->on_stopped);
+            callback();
+        }
+    }
+}
+
+void MediaStreamTrack::visit_edges(Cell::Visitor& visitor)
+{
+    Base::visit_edges(visitor);
+    visitor.visit(m_video_source_track);
+}
+
 void MediaStreamTrack::finalize()
 {
     Base::finalize();
@@ -358,6 +429,7 @@ void MediaStreamTrack::finalize()
     // the callback only references the atomically ref-counted fan-out, never this GC-managed
     // track.
     stop_audio_capture();
+    stop_video_capture();
 }
 
 }

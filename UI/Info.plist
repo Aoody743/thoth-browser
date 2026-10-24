@@ -11,9 +11,19 @@
         <key>CFBundleName</key>
         <string>Thoth Browser</string>
         <key>CFBundleShortVersionString</key>
-        <string>0.9.1</string>
+        <string>@THOTH_VERSION@</string>
         <key>CFBundleVersion</key>
-        <string>0.9.1</string>
+        <string>@THOTH_BUNDLE_VERSION@</string>
+        <key>SUFeedURL</key>
+        <string>@THOTH_UPDATE_FEED_URL@</string>
+        <key>SUPublicEDKey</key>
+        <string>@THOTH_UPDATE_PUBLIC_KEY@</string>
+        <key>SUEnableAutomaticChecks</key>
+        <true/>
+        <key>SUAutomaticallyUpdate</key>
+        <true/>
+        <key>SUVerifyUpdateBeforeExtraction</key>
+        <true/>
         <key>CFBundleGetInfoString</key>
         <string>Thoth Browser</string>
         <key>CFBundleSignature</key>
@@ -34,6 +44,10 @@
         <string>Thoth Browser needs your location to provide it to websites that request geolocation access.</string>
         <key>NSMicrophoneUsageDescription</key>
         <string>Thoth Browser needs access to your microphone to provide audio capture to websites that request it.</string>
+        <key>NSCameraUsageDescription</key>
+        <string>Thoth Browser needs access to your camera to provide video capture to websites that you allow.</string>
+        <key>NSCameraUseContinuityCameraDeviceType</key>
+        <true/>
         <key>CFBundleDocumentTypes</key>
         <array>
             <dict>

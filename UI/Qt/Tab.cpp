@@ -26,12 +26,18 @@
 #include <UI/Qt/JavaScriptDialog.h>
 #if defined(AK_OS_MACOS)
 #    include <UI/Qt/MacWindow.h>
+#    include <UI/Qt/Thoth/CameraCapture.h>
 #endif
 #include <UI/Qt/Menu.h>
 #include <UI/Qt/Popover.h>
 #include <UI/Qt/StringUtils.h>
-#include <UI/Qt/Thoth/Appearance.h>
 #include <UI/Qt/Thoth/Localization.h>
+#include <UI/Qt/Thoth/NavigationButton.h>
+#include <UI/Qt/Thoth/Sidebar.h>
+#include <UI/Qt/Thoth/SitePolicyStore.h>
+#include <LibWebView/Profile.h>
+#include <QCheckBox>
+#include <memory>
 #include <UI/Qt/WindowControlButton.h>
 
 #include <LibWebView/TabPerformanceMonitor.h>
@@ -62,6 +68,29 @@
 #include <UI/Qt/PerformanceMonitorWidget.h>
 
 namespace Ladybird {
+
+void Tab::complete_media_permission(bool camera, bool granted, Function<void(bool)> on_decided)
+{
+    auto callback = std::make_shared<Function<void(bool)>>(AK::move(on_decided));
+    auto complete = [tab = QPointer<Tab>(this), camera, callback, generation = m_media_permission_generation](bool allowed) {
+        // Native authorization can finish after the page was closed or navigated.
+        allowed = allowed && tab && tab->m_media_permission_generation == generation;
+        if (allowed) {
+            if (camera)
+                tab->m_camera_granted = true;
+            else
+                tab->m_microphone_granted = true;
+        }
+        (*callback)(allowed);
+    };
+#if defined(AK_OS_MACOS)
+    if (camera && granted) {
+        Thoth::CameraCapture::request_access(std::move(complete));
+        return;
+    }
+#endif
+    complete(granted);
+}
 
 static constexpr auto WINDOW_DRAG_REGION_PROPERTY = "LadybirdWindowDragRegion";
 
@@ -244,9 +273,9 @@ private:
 
 static constexpr int TOOLBAR_BUTTON_SIZE = 34;
 
-static QToolButton* create_toolbar_button(QWidget& parent, QAction& action)
+static QToolButton* create_toolbar_button(QWidget& parent, QAction& action, bool simple_navigation = false)
 {
-    auto* button = new ToolbarButton(&parent);
+    QToolButton* button = simple_navigation ? static_cast<QToolButton*>(new Thoth::NavigationButton(&parent)) : new ToolbarButton(&parent);
     button->setDefaultAction(&action);
     button->setAutoRaise(true);
     button->setFocusPolicy(Qt::NoFocus);
@@ -262,18 +291,16 @@ static QToolButton* create_toolbar_button(QWidget& parent, QAction& action)
 
 static QToolButton* create_navigation_history_toolbar_button(QWidget& parent, QAction& action, WebContentView& view, int direction)
 {
-    auto* button = create_toolbar_button(parent, action);
+    auto* button = create_toolbar_button(parent, action, true);
     auto* menu = new QMenu(button);
     QObject::connect(menu, &QMenu::aboutToShow, button, [menu, &view, direction] {
         populate_session_history_traversal_menu(*menu, view, direction);
     });
-    button->setMenu(menu);
-    button->setPopupMode(QToolButton::DelayedPopup);
     button->setContextMenuPolicy(Qt::CustomContextMenu);
     QObject::connect(button, &QToolButton::customContextMenuRequested, button, [button, menu, &view, direction](QPoint const&) {
         populate_session_history_traversal_menu(*menu, view, direction);
         if (!menu->isEmpty())
-            button->showMenu();
+            menu->popup(button->mapToGlobal(button->rect().bottomLeft()));
     });
     return button;
 }
@@ -609,6 +636,11 @@ Tab::Tab(BrowserWindow* window, Optional<WebView::CanonicalTraversable&> travers
     };
 
     m_view = new WebContentView(this, traversable, AK::move(view_initial_state));
+    m_view->installEventFilter(this);
+    auto private_session = window->is_private() == WebView::IsPrivate::Yes;
+    auto policy_path = qstring_from_ak_string(WebView::Application::profile().paths().config) + "/thoth-site-permissions.json";
+    auto policy_key = private_session ? QString("private:%1").arg(reinterpret_cast<quintptr>(&view().session())) : policy_path;
+    m_site_policies = Thoth::SitePolicyStore::shared(policy_key, private_session ? QString {} : policy_path);
     m_loading_overlay = new TabLoadingOverlay(this);
     m_javascript_dialog = new JavaScriptDialog(m_view);
     m_find_in_page = new FindInPageWidget(this, m_view);
@@ -747,7 +779,9 @@ Tab::Tab(BrowserWindow* window, Optional<WebView::CanonicalTraversable&> travers
     navigation_button_layout->addItem(m_sidebar_toggle_navigation_spacer);
     navigation_button_layout->addWidget(create_navigation_history_toolbar_button(*navigation_button_cluster, *m_navigate_back_action, view(), -1));
     navigation_button_layout->addWidget(create_navigation_history_toolbar_button(*navigation_button_cluster, *m_navigate_forward_action, view(), 1));
-    navigation_button_layout->addWidget(create_toolbar_button(*navigation_button_cluster, *m_reload_action));
+    m_toolbar_reload_button = create_toolbar_button(*navigation_button_cluster, *m_reload_action, true);
+    static_cast<Thoth::NavigationButton*>(m_toolbar_reload_button)->set_loading_icon(create_chrome_icon(ChromeIcon::Loading, palette()));
+    navigation_button_layout->addWidget(m_toolbar_reload_button);
 
     if constexpr (use_native_macos_window_controls())
         toolbar_layout->addWidget(m_toolbar_window_controls, 0, Qt::AlignVCenter);
@@ -833,6 +867,17 @@ Tab::Tab(BrowserWindow* window, Optional<WebView::CanonicalTraversable&> travers
     };
 
     view().on_top_level_navigation_commit = [this] {
+        m_has_user_input = false;
+        ++m_media_permission_generation;
+        auto pending_permissions = AK::move(m_pending_permission_requests);
+        for (auto& entry : pending_permissions) {
+            if (entry.value.dialog)
+                entry.value.dialog->reject();
+            for (auto& decided : entry.value.on_decided)
+                decided(false);
+        }
+        m_microphone_granted = false;
+        m_camera_granted = false;
         if (m_content_blocking_popover)
             m_content_blocking_popover->close();
         m_suppress_javascript_dialogs_until_navigation = false;
@@ -1001,6 +1046,17 @@ Tab::Tab(BrowserWindow* window, Optional<WebView::CanonicalTraversable&> travers
     };
 
     view().on_request_permission = [this](auto const& name, auto const& origin, auto on_decided) {
+        bool camera = name == "camera"_utf16;
+        if (!camera && name != "microphone"_utf16) {
+            on_decided(false);
+            return;
+        }
+        auto serialized_origin = origin.is_opaque() ? QString {} : qstring_from_ak_string(origin.serialize());
+        auto decision = camera ? m_site_policies->camera(serialized_origin) : m_site_policies->microphone(serialized_origin);
+        if (decision != Thoth::SitePolicyStore::Decision::Ask) {
+            complete_media_permission(camera, decision == Thoth::SitePolicyStore::Decision::Allow, AK::move(on_decided));
+            return;
+        }
         auto requester = origin.is_opaque() ? "this page"_string : origin.serialize();
         auto question = MUST(String::formatted("Allow {} to use your {}?", requester, name));
         if (auto pending = m_pending_permission_requests.get(question); pending.has_value()) {
@@ -1013,22 +1069,36 @@ Tab::Tab(BrowserWindow* window, Optional<WebView::CanonicalTraversable&> travers
         dialog->setIcon(QMessageBox::Icon::Question);
         dialog->setWindowTitle("Thoth Browser");
         dialog->setTextFormat(Qt::PlainText);
-        dialog->setText(qstring_from_ak_string(question));
+        dialog->setText(Thoth::localized_text("Allow %1 to use your %2?")
+                            .arg(origin.is_opaque() ? Thoth::localized_text("this page") : serialized_origin,
+                                Thoth::localized_text(camera ? "Camera" : "Microphone")));
         auto* allow_button = dialog->addButton("Allow", QMessageBox::ButtonRole::AcceptRole);
         auto* block_button = dialog->addButton("Block", QMessageBox::ButtonRole::RejectRole);
         dialog->setDefaultButton(block_button);
+        auto* remember = new QCheckBox("Remember for this site", dialog);
+        remember->setEnabled(!serialized_origin.isEmpty());
+        dialog->setCheckBox(remember);
+        Thoth::localize_widget_tree(*dialog);
 
         PendingPermissionRequests pending { .dialog = dialog, .on_decided = {} };
         pending.on_decided.append(AK::move(on_decided));
         m_pending_permission_requests.set(question, AK::move(pending));
 
-        QObject::connect(dialog, &QDialog::finished, this, [this, dialog = QPointer<QMessageBox> { dialog }, allow_button, question](auto) {
+        QObject::connect(dialog, &QDialog::finished, this, [this, dialog = QPointer<QMessageBox> { dialog }, allow_button, question, serialized_origin, camera](auto) {
             auto pending = m_pending_permission_requests.take(question);
             if (!pending.has_value())
                 return;
             auto granted = dialog && dialog->clickedButton() == allow_button;
-            for (auto& on_decided : pending.value().on_decided)
-                on_decided(granted);
+            if (dialog && dialog->clickedButton() && dialog->checkBox()->isChecked()) {
+                auto decision = granted ? Thoth::SitePolicyStore::Decision::Allow : Thoth::SitePolicyStore::Decision::Block;
+                auto saved = camera ? m_site_policies->set_camera(serialized_origin, decision) : m_site_policies->set_microphone(serialized_origin, decision);
+                if (!saved)
+                    QMessageBox::warning(this, Thoth::localized_text("Site Permissions"), Thoth::localized_text("The decision could not be saved. It applies to this request only."));
+            }
+            complete_media_permission(camera, granted, [callbacks = AK::move(pending.value().on_decided)](bool allowed) mutable {
+                for (auto& on_decided : callbacks)
+                    on_decided(allowed);
+            });
         });
 
         dialog->open();
@@ -1320,7 +1390,7 @@ void Tab::configure_sidebar_toolbar()
     forward->setObjectName("ThothSidebarGoForward");
     forward->setAccessibleName("Go Forward");
 
-    m_sidebar_reload_button = new ToolbarButton(m_sidebar_navigation_buttons);
+    m_sidebar_reload_button = new Thoth::NavigationButton(m_sidebar_navigation_buttons);
     m_sidebar_reload_button->setObjectName("ThothSidebarReload");
     m_sidebar_reload_button->setAccessibleName("Reload");
     m_sidebar_reload_button->setToolTip("Reload current page");
@@ -1329,7 +1399,6 @@ void Tab::configure_sidebar_toolbar()
     m_sidebar_reload_button->setAutoRaise(true);
     m_sidebar_reload_button->setFocusPolicy(Qt::NoFocus);
     m_sidebar_reload_button->setCheckable(false);
-    m_sidebar_reload_button->setProperty("ThothPressOnlyFeedback", true);
     QObject::connect(m_sidebar_reload_button, &QToolButton::clicked, this, [this] {
         view().reload();
     });
@@ -1337,13 +1406,19 @@ void Tab::configure_sidebar_toolbar()
     row->addWidget(back);
     row->addWidget(forward);
     row->addWidget(m_sidebar_reload_button);
+    static_cast<Thoth::NavigationButton*>(m_sidebar_reload_button)->set_loading_icon(create_chrome_icon(ChromeIcon::Loading, palette()));
+    static_cast<Thoth::NavigationButton*>(m_sidebar_reload_button)->set_loading(m_is_loading);
     row->addStretch();
+    m_downloads_button->setParent(m_sidebar_navigation_buttons);
+    m_downloads_button->setObjectName("ThothSidebarDownloads");
+    m_downloads_button->setAccessibleName("Downloads");
+    row->addWidget(m_downloads_button);
     for (auto* button : m_sidebar_navigation_buttons->findChildren<QToolButton*>(QString {},Qt::FindDirectChildrenOnly)) {
         button->setFixedSize(40, 40);
         button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
         button->setIconSize({ 18, 18 });
     }
-    m_sidebar_navigation_buttons->setStyleSheet("QToolButton { min-width: 40px; min-height: 40px; max-width: 40px; max-height: 40px; padding: 0; border: none; border-radius: 10px; } QToolButton::menu-indicator { image: none; } QToolButton#ThothSidebarReload:hover { background: transparent; }");
+    m_sidebar_navigation_buttons->setStyleSheet("QToolButton { min-width: 40px; min-height: 40px; max-width: 40px; max-height: 40px; padding: 0; border: none; border-radius: 10px; } QToolButton::menu-indicator { image: none; }");
 #if defined(Q_OS_WIN)
     // Keep Windows browser chrome in a single full-width top row: navigation
     // controls on the left, the address field in the middle, and window
@@ -1406,7 +1481,7 @@ void Tab::configure_sidebar_toolbar()
     m_location_edit->show();
     // Full browser commands remain in the native menu and the sidebar's Browser submenu.
     auto* hidden_controls = new QWidget(this); hidden_controls->hide();
-    m_downloads_button->setParent(hidden_controls); m_hamburger_button->setParent(hidden_controls);
+    m_hamburger_button->setParent(hidden_controls);
     m_bookmarks_bar->setParent(hidden_controls);
     m_toolbar_container->setSizePolicy(QSizePolicy::Ignored,QSizePolicy::Fixed);
     update_chrome_style();
@@ -1548,6 +1623,14 @@ void Tab::set_loading(bool is_loading)
         return;
 
     m_is_loading = is_loading;
+    if (m_toolbar_reload_button)
+        static_cast<Thoth::NavigationButton*>(m_toolbar_reload_button)->set_loading(is_loading);
+    if (m_sidebar_reload_button) {
+        static_cast<Thoth::NavigationButton*>(m_sidebar_reload_button)->set_loading(is_loading);
+        auto text = Thoth::localized_text(is_loading ? "Reloading page" : "Reload current page");
+        m_sidebar_reload_button->setToolTip(text);
+        m_sidebar_reload_button->setAccessibleName(text);
+    }
     m_loading_animation_frame = 0;
 
     if (m_is_loading)
@@ -1691,8 +1774,14 @@ void Tab::recreate_toolbar_icons()
     m_navigate_back_action->setIcon(create_chrome_icon(ChromeIcon::Back, palette()));
     m_navigate_forward_action->setIcon(create_chrome_icon(ChromeIcon::Forward, palette()));
     m_reload_action->setIcon(create_chrome_icon(ChromeIcon::Reload, palette()));
-    if (m_sidebar_reload_button)
-        m_sidebar_reload_button->setIcon(m_reload_action->icon());
+    for (auto* button : { m_sidebar_reload_button, m_toolbar_reload_button }) {
+        if (!button)
+            continue;
+        button->setIcon(m_reload_action->icon());
+        auto* navigation = static_cast<Thoth::NavigationButton*>(button);
+        navigation->set_loading_icon(create_chrome_icon(ChromeIcon::Loading, palette()));
+        navigation->set_loading(m_is_loading);
+    }
     m_downloads_button_icon = {};
     update_downloads_button();
     m_hamburger_button->setIcon(create_chrome_icon(ChromeIcon::Menu, palette()));

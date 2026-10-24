@@ -28,6 +28,11 @@
 Thoth 是一款面向 macOS 的实验性浏览器，基于
 [Ladybird](https://github.com/LadybirdBrowser/ladybird) 引擎构建。垂直侧边栏将工作区和网页整合在一处，保持界面安静紧凑，让网页拥有更多空间。
 
+**0.9.2 预览版**加入签名自动更新、当前页优先恢复、侧边栏静音和 macOS
+摄像头预览。预览构建见 [GitHub Releases](https://github.com/Aoody743/thoth-browser/releases)。
+0.9.1 用户需先手动安装一次，之后可在浏览器内下载更新并重启安装。
+[更新、回退和验收流程](Documentation/Desktop-Updates.md)另有说明。
+
 ## 用不同方式整理网页
 
 - **工作区**：按项目整理网页，每个工作区都可以设置自己的颜色和图标。

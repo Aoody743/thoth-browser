@@ -65,10 +65,6 @@ static constexpr auto WINDOW_DRAG_REGION_PROPERTY = "LadybirdWindowDragRegion";
 static constexpr int WINDOW_DRAG_REGION_HEIGHT = 28;
 static constexpr int WINDOW_RESIZE_BORDER_WIDTH = 6;
 static constexpr int WINDOW_RESIZE_CORNER_WIDTH = WINDOW_RESIZE_BORDER_WIDTH * 2;
-#if defined(AK_OS_MACOS)
-static constexpr int NATIVE_WINDOW_CONTROL_X_OFFSET = 6;
-static constexpr int NATIVE_WINDOW_CONTROL_Y_OFFSET = 6;
-#endif
 
 static bool has_visible_menu_item(QMenu const& menu)
 {
@@ -484,7 +480,9 @@ void BrowserWindow::initialize_application_menu()
     setMenuBar(Application::the().create_application_menu_bar(Application::ForBrowserWindow::Yes));
     menuBar()->setObjectName("LadybirdMenuBar");
 
-    menuBar()->addMenu("Thoth")->addAction(findChild<QAction*>("ThothSplitViewAction"));
+    auto* thoth_menu = menuBar()->addMenu("Thoth");
+    thoth_menu->setObjectName("ThothApplicationMenu");
+    thoth_menu->addAction(findChild<QAction*>("ThothSplitViewAction"));
     auto* toggle_sidebar = findChild<QAction*>("ThothToggleSidebarAction");
     if (toggle_sidebar) {
         for (auto* menu : menuBar()->findChildren<QMenu*>()) {
@@ -896,7 +894,7 @@ bool BrowserWindow::activate_tab_with_url(URL::URL const& url)
     return false;
 }
 
-bool BrowserWindow::definitely_close_tab(int index)
+bool BrowserWindow::definitely_close_tab(int index, bool record_closed)
 {
     if (m_tabs_container->count() == 1 && Application::the().file_downloader().has_active_downloads() && visible_browser_window_count() <= 1) {
         if (!Application::the().confirm_stop_active_downloads(this))
@@ -905,13 +903,17 @@ bool BrowserWindow::definitely_close_tab(int index)
 
     auto* tab = m_tabs_container->tab(index);
     m_tabs_container->remove_tab(index);
-    if (auto session_tab_id = tab->view().session_tab_id(); session_tab_id.has_value()) {
+    if (auto session_tab_id = tab->view().session_tab_id(); record_closed && session_tab_id.has_value()) {
         WebView::SessionStore::TabClosed closed {
             .tab_id = *session_tab_id,
             .closed_at = UnixDateTime::now(),
         };
         if (auto result = m_session->session_store->tab_closed(AK::move(closed)); result.is_error())
             dbgln("Unable to record the closed tab in the session store: {}", result.error());
+    }
+    if (!record_closed) {
+        if (auto id = tab->view().session_tab_id(); id.has_value())
+            m_session->session_store->tab_detached(*id);
     }
     Application::the().update_reopen_recently_closed_actions();
     tab->deleteLater();
@@ -1066,8 +1068,8 @@ void BrowserWindow::display_metadata_changed(Optional<u64> display_id, qreal ref
 void BrowserWindow::update_window_title(QString const& title)
 {
     char const* format = is_private() == WebView::IsPrivate::Yes
-        ? "%1 - Thoth Browser 0.9.1 (Private Browsing)"
-        : "%1 - Thoth Browser 0.9.1";
+        ? "%1 - Thoth Browser " THOTH_DISPLAY_VERSION " (Private Browsing)"
+        : "%1 - Thoth Browser " THOTH_DISPLAY_VERSION;
     setWindowTitle(QString(format).arg(title));
 }
 
@@ -1384,7 +1386,8 @@ bool BrowserWindow::event(QEvent* event)
 #if defined(AK_OS_MACOS)
             QTimer::singleShot(0, this, [this] {
                 hide_appkit_window_title(*this);
-                offset_appkit_window_controls(*this, NATIVE_WINDOW_CONTROL_X_OFFSET, NATIVE_WINDOW_CONTROL_Y_OFFSET);
+                // Keep AppKit in charge of the button frames, hover glyphs and hit testing.
+                // Moving individual standard buttons can detach their glyphs on macOS.
             });
 #endif
         } else if (platform_surface_event->surfaceEventType() == QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed) {

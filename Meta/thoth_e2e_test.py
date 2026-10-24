@@ -276,6 +276,17 @@ def main() -> int:
                 time.sleep(0.1)
             if not expected_download.is_file() or expected_download.read_bytes() != FixtureHandler.download_body:
                 raise AssertionError(f"download did not complete at {expected_download}")
+            # A download has no replacement document. Check the persisted chrome
+            # after its refresh timer, as well as the still-live DOM title/URL.
+            time.sleep(1)
+            state = wait_for_sidebar_url(sidebar_state, url)
+            source_pages = [page for window in state["windows"].values() for page in window["pages"] if page["url"] == url]
+            if len(source_pages) != 1 or source_pages[0]["title"] != "Thoth E2E":
+                raise AssertionError(f"download changed the source sidebar identity: {source_pages}")
+            status, payload, raw = HELPERS["request"](port, "POST", f"/session/{session}/execute/sync",
+                {"script": "return {title:document.title,url:location.href};", "args": []})
+            if status != 200 or payload.get("value") != {"title":"Thoth E2E", "url":url}:
+                raise AssertionError(f"download changed the source document: {raw}")
             status, payload, raw = HELPERS["request"](
                 port,
                 "POST",
@@ -376,13 +387,82 @@ def main() -> int:
                 status, payload, raw = HELPERS["request"](port, "GET", f"/session/{session}/url")
                 if status != 200:
                     raise AssertionError(f"reading a restored tab URL failed: {raw}")
+                deadline = time.monotonic() + 10
+                while payload.get("value") == "about:blank" and "about:blank" not in saved_page_urls and time.monotonic() < deadline:
+                    time.sleep(.1)
+                    status, payload, raw = HELPERS["request"](port, "GET", f"/session/{session}/url")
+                    if status != 200:
+                        raise AssertionError(f"reading restored URL failed: {raw}")
                 restored_urls.append(payload.get("value"))
             if set(restored_urls) != set(saved_page_urls):
                 raise AssertionError(f"restored pages do not match the saved pages: {restored_urls}")
             restored_state = wait_for_sidebar_item_order(sidebar_state, saved_page_urls)
             if sidebar_item_urls(restored_state) != saved_page_urls:
                 raise AssertionError(f"restored sidebar order changed: {sidebar_item_urls(restored_state)}")
-            print("PASS: Thoth navigation, DOM, downloads, internal pages, split/workspace and browser restart restore")
+            # WebDriver's inherited new-window endpoint currently ignores the
+            # window type hint. Seed a second snapshot between runs, then prove
+            # it restores as a real independent BrowserWindow below. Native
+            # new/close window actions are covered separately by UI acceptance.
+            status, _, raw = HELPERS["request"](port, "DELETE", f"/session/{session}")
+            if status != 200:
+                raise AssertionError(f"closing multi-window browser failed: {raw}")
+            session = None
+            process.terminate()
+            process.wait(timeout=10)
+
+            # An unparseable saved URL must leave the other pages/windows usable.
+            multi_state = json.loads(sidebar_state.read_text())
+            third_url = f"http://127.0.0.1:{server.server_address[1]}/third"
+            multi_state["windows"]["second-window-fixture"] = {
+                "schema": 2,
+                "workspaces": [{"id": "second-space", "name": "Second Window", "color": "#9fbbe0", "symbol": "book", "active": "third-item"}],
+                "active_workspace": "second-space",
+                "pages": [{"id": "third-page", "url": third_url, "title": "Third page"}],
+                "items": [{"id": "third-item", "pages": ["third-page"], "active": "third-page", "section": "temporary", "workspace": "second-space"}],
+                "active": "third-item",
+            }
+            replaced = False
+            for window in multi_state["windows"].values():
+                for page in window["pages"]:
+                    if page["url"] == "about:history":
+                        page["url"] = "not a valid absolute URL"
+                        replaced = True
+            if not replaced:
+                raise AssertionError("missing malformed-URL fixture target")
+            sidebar_state.write_text(json.dumps(multi_state))
+            port = HELPERS["unused_port"]()
+            process = subprocess.Popen([args.webdriver, "-l", "127.0.0.1", "-p", str(port), "--profile-path", profile])
+            HELPERS["wait_for_port"](port)
+            session = create_graphical_session(port)
+            deadline = time.monotonic() + 15
+            while True:
+                status, payload, raw = HELPERS["request"](port, "GET", f"/session/{session}/window/handles")
+                if status == 200 and len(payload.get("value", [])) == 3:
+                    break
+                if time.monotonic() >= deadline:
+                    break
+                time.sleep(0.1)
+            if status != 200 or len(payload.get("value", [])) != 3:
+                raise AssertionError(f"multi-window restore lost or duplicated pages: {raw}")
+            handles = payload["value"]
+            deadline = time.monotonic() + 15
+            while True:
+                restored_urls = []
+                for handle in handles:
+                    HELPERS["request"](port, "POST", f"/session/{session}/window", {"handle": handle})
+                    status, result, raw = HELPERS["request"](port, "GET", f"/session/{session}/url")
+                    if status != 200:
+                        raise AssertionError(f"restored page inaccessible: {raw}")
+                    restored_urls.append(result.get("value"))
+                if set(restored_urls) == {"about:blank", second_url, third_url} or time.monotonic() >= deadline:
+                    break
+                time.sleep(0.1)
+            if set(restored_urls) != {"about:blank", second_url, third_url}:
+                raise AssertionError(f"malformed-URL restore affected other pages: {restored_urls}")
+            final_state = wait_for_sidebar_url(sidebar_state, "about:blank")
+            if len(final_state["windows"]) != 2:
+                raise AssertionError("window membership did not survive restart")
+            print("PASS: Thoth navigation, DOM, downloads, split/workspace, multi-window restart and malformed-URL recovery")
         finally:
             if session is not None and process.poll() is None:
                 HELPERS["request"](port, "DELETE", f"/session/{session}")

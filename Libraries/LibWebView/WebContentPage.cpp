@@ -435,6 +435,7 @@ void WebContentPage::maybe_record_history_visit_for_current_load(URL::URL const&
 
 void WebContentPage::begin_top_level_load(URL::URL const& url)
 {
+    revoke_video_capture();
     if (auto process = WebView::Application::the().find_process(client().pid()); process.has_value())
         process->set_title(OptionalNone {});
 
@@ -446,7 +447,8 @@ void WebContentPage::begin_top_level_load(URL::URL const& url)
     view.did_start_navigation();
 
     view.set_url({}, url);
-    view.set_title({}, Utf16String::from_utf8(url.serialize()));
+    // Keep the document title until a document supplies its title. A navigation
+    // can become a download and leave the current document in place.
     view.set_favicon({}, {});
     view.set_editing_history_state(false, false);
 
@@ -620,6 +622,7 @@ void WebContentPage::fail_renderer_owned_downloads()
 
 void WebContentPage::close()
 {
+    revoke_video_capture();
     m_is_open = false;
     m_needs_beforeunload_check = true;
     m_history_recorded_url_for_current_load.clear();
@@ -1461,9 +1464,57 @@ void WebContentPage::did_request_geolocation_position(u64 request_id)
         view().on_request_geolocation_position(*this, request_id);
 }
 
+void WebContentPage::revoke_video_capture()
+{
+    m_camera_grant.clear();
+    m_video_captures.clear();
+}
+
+String WebContentPage::camera_devices()
+{
+    if (!is_open() || !m_camera_grant.has_value() || *m_camera_grant != view().url().origin() || !view().on_camera_devices)
+        return "[]"_string;
+    return view().on_camera_devices(*m_camera_grant);
+}
+
+u64 WebContentPage::start_video_capture(String device_id, String configuration)
+{
+    if (!is_open() || !m_camera_grant.has_value() || *m_camera_grant != view().url().origin() || !view().on_start_video_capture || m_video_captures.size() >= 8)
+        return 0;
+    auto capture = view().on_start_video_capture(*m_camera_grant, device_id, configuration);
+    if (!capture)
+        return 0;
+    auto id = ++m_next_video_capture_id;
+    m_video_captures.set(id, capture.release_nonnull());
+    return id;
+}
+
+bool WebContentPage::configure_video_capture(u64 capture_id, String const& configuration)
+{
+    if (!is_open() || !m_camera_grant.has_value() || *m_camera_grant != view().url().origin())
+        return false;
+    auto capture = m_video_captures.get(capture_id);
+    return capture.has_value() && (*capture)->configure(configuration);
+}
+
+Gfx::ShareableBitmap WebContentPage::video_capture_frame(u64 capture_id)
+{
+    if (!is_open() || !m_camera_grant.has_value() || *m_camera_grant != view().url().origin()) {
+        revoke_video_capture();
+        return {};
+    }
+    auto capture = m_video_captures.get(capture_id);
+    return capture.has_value() ? (*capture)->frame() : Gfx::ShareableBitmap {};
+}
+
+void WebContentPage::stop_video_capture(u64 capture_id)
+{
+    m_video_captures.remove(capture_id);
+}
+
 void WebContentPage::did_request_permission(u64 request_id, Utf16String name)
 {
-    if (name != "microphone"_utf16) {
+    if (name != "microphone"_utf16 && name != "camera"_utf16) {
         client().did_misbehave("did_request_permission"sv, "unknown permission name"sv);
         return;
     }
@@ -1477,6 +1528,11 @@ void WebContentPage::did_request_permission(u64 request_id, Utf16String name)
     view().on_request_permission(name, url.origin(), [page = NonnullRefPtr(*this), request_id, name, url](bool granted) {
         if (!page->is_open())
             return;
+        // A prompt cannot authorize the document navigated to while it was open.
+        if (page->view().url().origin() != url.origin())
+            granted = false;
+        if (granted && name == "camera"_utf16)
+            page->m_camera_grant = url.origin();
         // The AudioServer hears of the permission before the page does, so the page's first request finds it in place.
         if (granted && name == "microphone"_utf16) {
             if (auto result = page->client().grant_audio_capture(url); result.is_error()) {

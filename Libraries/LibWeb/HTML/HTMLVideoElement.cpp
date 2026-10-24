@@ -293,7 +293,7 @@ HTMLVideoElement::Representation HTMLVideoElement::current_representation() cons
     // -> When no video data is available (the element's readyState attribute is either HAVE_NOTHING, or HAVE_METADATA
     //    but no video data has yet been obtained at all, or the element's readyState attribute is any subsequent value
     //    but the media resource does not have a video channel)
-    if (ready_state() == ReadyState::HaveNothing || video_tracks()->length() == 0) {
+    if (ready_state() == ReadyState::HaveNothing || (video_tracks()->length() == 0 && !m_current_frame.frame)) {
         // The video element represents its poster frame, if any, or else transparent black with no intrinsic dimensions.
         return poster_frame().has_value() ? Representation::PosterFrame : Representation::TransparentBlack;
     }
@@ -333,8 +333,31 @@ HTMLVideoElement::Representation HTMLVideoElement::current_representation() cons
     return Representation::VideoFrame;
 }
 
+void HTMLVideoElement::set_media_stream_frame(RefPtr<Gfx::Bitmap> frame)
+{
+    if (m_current_frame.frame == frame)
+        return;
+    m_current_frame.frame = move(frame);
+    if (m_current_frame.frame)
+        set_intrinsic_video_dimensions(m_current_frame.frame->size().to_type<u32>());
+    else
+        set_intrinsic_video_dimensions({});
+    update_representation();
+    Painting::push_video_paint_facts(*this);
+    set_needs_repaint(InvalidateDisplayList::PaintCommands);
+}
+
+Optional<Gfx::DecodedImageFrame> HTMLVideoElement::media_stream_frame() const
+{
+    if (!m_current_frame.frame)
+        return {};
+    return Gfx::DecodedImageFrame { NonnullRefPtr<Gfx::Bitmap const> { *m_current_frame.frame } };
+}
+
 Optional<Gfx::DecodedImageFrame> HTMLVideoElement::current_decoded_image_frame() const
 {
+    if (auto frame = media_stream_frame(); frame.has_value())
+        return frame;
     auto current_frame = current_presented_frame();
     if (!current_frame)
         return {};

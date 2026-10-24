@@ -686,6 +686,30 @@ Messages::WebContentClient::DidRequestStorageUsageResponse WebContentClient::did
     return 0u;
 }
 
+Messages::WebContentClient::CameraDevicesResponse WebContentClient::camera_devices(Web::PageId page_id)
+{
+    auto* endpoint = page(page_id);
+    return { endpoint ? endpoint->camera_devices() : "[]"_string };
+}
+
+Messages::WebContentClient::StartVideoCaptureResponse WebContentClient::start_video_capture(Web::PageId page_id, String device_id, String configuration)
+{
+    auto* endpoint = page(page_id);
+    return { endpoint ? endpoint->start_video_capture(move(device_id), move(configuration)) : 0 };
+}
+
+Messages::WebContentClient::ConfigureVideoCaptureResponse WebContentClient::configure_video_capture(Web::PageId page_id, u64 capture_id, String configuration)
+{
+    auto* endpoint = page(page_id);
+    return { endpoint && endpoint->configure_video_capture(capture_id, configuration) };
+}
+
+Messages::WebContentClient::VideoCaptureFrameResponse WebContentClient::video_capture_frame(Web::PageId page_id, u64 capture_id)
+{
+    auto* endpoint = page(page_id);
+    return { endpoint ? endpoint->video_capture_frame(capture_id) : Gfx::ShareableBitmap {} };
+}
+
 Messages::WebContentClient::DidStartDownloadWithoutRequestResponse WebContentClient::did_start_download_without_request(Web::PageId page_id, URL::URL url, ByteString suggested_filename, Optional<u64> total_size)
 {
     if (auto* page = this->page(page_id))
@@ -832,6 +856,12 @@ ErrorOr<void> WebContentClient::grant_audio_capture(URL::URL const& url)
         return {};
     TRY(ensure_audio_server_controller());
     return tell_audio_server_of_capture_permission();
+}
+
+void WebContentClient::revoke_audio_capture(URL::URL const& url)
+{
+    m_audio_capture_grants.remove(audio_capture_permission_key(url));
+    update_audio_capture_permission();
 }
 
 void WebContentClient::update_audio_capture_permission()
