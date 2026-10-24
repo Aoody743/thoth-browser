@@ -7,6 +7,7 @@
 
 #include <AK/ByteString.h>
 #include <AK/Format.h>
+#include <AK/LexicalPath.h>
 #include <AK/StringView.h>
 #include <AK/Vector.h>
 #include <LibCore/ArgsParser.h>
@@ -83,6 +84,29 @@ ErrorOr<int> ladybird_main(Main::Arguments arguments)
     // FIXME: Update RequestServer to support multiple custom root certificates.
     if (!certificates.is_empty())
         RequestServer::set_default_certificate_path(certificates.first());
+
+#if defined(AK_OS_WINDOWS)
+    // Windows has no default OpenSSL trust store: the winstore provider is usually absent, and
+    // CertOpenSystemStoreW can be denied by local policy, so without a bundle every HTTPS request
+    // fails verification. The packaged build ships a CA bundle next to the executable, so pick it
+    // up automatically unless -C already provided one.
+    if (certificates.is_empty() && RequestServer::default_certificate_path().is_empty()) {
+        Vector<ByteString> bundle_candidates;
+        if (char const* environment_bundle = getenv("SSL_CERT_FILE"); environment_bundle && *environment_bundle)
+            bundle_candidates.empend(environment_bundle);
+        if (auto executable_path = Core::System::current_executable_path(); !executable_path.is_error()) {
+            auto const executable_lexical_path = LexicalPath(executable_path.release_value());
+            bundle_candidates.empend(LexicalPath::join(executable_lexical_path.dirname(), "cacert.pem"sv).string());
+            bundle_candidates.empend(LexicalPath::join(executable_lexical_path.parent().string(), "cacert.pem"sv).string());
+        }
+        for (auto const& candidate : bundle_candidates) {
+            if (!FileSystem::exists(candidate))
+                continue;
+            RequestServer::set_default_certificate_path(candidate);
+            break;
+        }
+    }
+#endif
 
     if (!resource_map_path.is_empty()) {
         auto map = RequestServer::ResourceSubstitutionMap::load_from_file(resource_map_path);
