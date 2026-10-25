@@ -1745,8 +1745,12 @@ void Tab::update_chrome_style()
     // The frameless Windows window paints the chrome itself, so the toolbar row
     // uses Thoth's background instead of showing through to a native title bar.
     if (m_thoth_sidebar_toolbar) {
-        auto thoth_background = Thoth::chrome_background(ChromeStyle::is_dark(palette())).name();
-        toolbar_style += QStringLiteral("QWidget#LadybirdToolbarContainer, QWidget#LadybirdNavigationToolbar { background: %1; border: none; } QWidget#LadybirdNavigationToolbar QToolButton { min-width: 26px; min-height: 26px; max-width: 28px; max-height: 28px; border-radius: 7px; } QWidget#LadybirdNavigationToolbar QToolButton::menu-indicator { image: none; width: 0px; height: 0px; }").arg(thoth_background);
+        // Same surface as the sidebar and every menu, plus a hairline separating the chrome from
+        // web content: the full-width toolbar clears the stock border-bottom, which otherwise
+        // leaves the toolbar and the page to collide with no boundary.
+        auto thoth_background = ChromeStyle::chrome_background(palette()).name();
+        auto chrome_edge = ChromeStyle::style_sheet_color(ChromeStyle::chrome_border(palette()));
+        toolbar_style += QStringLiteral("QWidget#LadybirdToolbarContainer { background: %1; border: none; border-bottom: 1px solid %2; } QWidget#LadybirdNavigationToolbar { background: %1; border: none; } QWidget#LadybirdNavigationToolbar QToolButton { min-width: 30px; min-height: 30px; max-width: 31px; max-height: 31px; border-radius: 8px; } QWidget#LadybirdNavigationToolbar QToolButton::menu-indicator { image: none; width: 0px; height: 0px; }").arg(thoth_background, chrome_edge);
     }
 #else
     if (m_thoth_sidebar_toolbar)

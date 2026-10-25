@@ -1692,7 +1692,8 @@ void BrowserWindow::changeEvent(QEvent* event)
 void BrowserWindow::update_thoth_chrome_background()
 {
 #if defined(Q_OS_WIN)
-    auto background = Thoth::chrome_background(ChromeStyle::is_dark(palette()));
+    // Same surface as the toolbar row, sidebar and menus (ChromeStyle's Windows anchors).
+    auto background = ChromeStyle::chrome_background(palette());
 
     // The Windows chrome row (toolbar) and the drag strip are transparent so the
     // page can show through on other platforms; on Windows they sit on top of the

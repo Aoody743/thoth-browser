@@ -203,7 +203,15 @@ static void initialize_native_control(WebView::Action& action, QAction& qaction,
         qaction.setShortcut(QKeySequence::StandardKey::Paste);
         break;
     case WebView::ActionID::SelectAll:
+        if (include_action_icon == IncludeActionIcon::Yes)
+            qaction.setIcon(create_chrome_icon(ChromeIcon::SelectAll, palette));
         qaction.setShortcut(QKeySequence::StandardKey::SelectAll);
+        break;
+
+    case WebView::ActionID::TakeVisibleScreenshot:
+    case WebView::ActionID::TakeFullScreenshot:
+        if (include_action_icon == IncludeActionIcon::Yes)
+            qaction.setIcon(create_chrome_icon(ChromeIcon::Camera, palette));
         break;
 
     case WebView::ActionID::ToggleBookmark:
@@ -260,6 +268,8 @@ static void initialize_native_control(WebView::Action& action, QAction& qaction,
         });
         break;
     case WebView::ActionID::ViewSource:
+        if (include_action_icon == IncludeActionIcon::Yes)
+            qaction.setIcon(create_chrome_icon(ChromeIcon::File, palette));
         qaction.setShortcut(QKeySequence(Qt::CTRL | Qt::Key_U));
         break;
 
@@ -293,7 +303,7 @@ static void initialize_native_control(WebView::Action& action, QAction& qaction,
     add_properties(qaction, action);
 }
 
-static void add_items_to_menu(QMenu& qmenu, QWidget& parent, WebView::Menu& menu, IncludeActionShortcut include_action_shortcut)
+static void add_items_to_menu(QMenu& qmenu, QWidget& parent, WebView::Menu& menu, IncludeActionShortcut include_action_shortcut, IncludeActionIcon include_action_icon = IncludeActionIcon::No)
 {
     menu.add_observer(MenuObserver::create(qmenu));
     add_properties(qmenu, menu);
@@ -301,12 +311,12 @@ static void add_items_to_menu(QMenu& qmenu, QWidget& parent, WebView::Menu& menu
     for (auto& menu_item : menu.items()) {
         menu_item.visit(
             [&](NonnullRefPtr<WebView::Action>& action) {
-                auto* qaction = create_application_action(parent, action, IncludeActionIcon::No, include_action_shortcut);
+                auto* qaction = create_application_action(parent, action, include_action_icon, include_action_shortcut);
                 qmenu.addAction(qaction);
             },
             [&](NonnullRefPtr<WebView::Menu> const& submenu) {
                 auto* qsubmenu = new QMenu(qstring_from_ak_string(submenu->title()), &qmenu);
-                add_items_to_menu(*qsubmenu, parent, submenu, include_action_shortcut);
+                add_items_to_menu(*qsubmenu, parent, submenu, include_action_shortcut, include_action_icon);
 
                 if (submenu->render_group_icon())
                     qsubmenu->setIcon(create_chrome_icon(ChromeIcon::Folder, parent.palette()));
@@ -362,10 +372,10 @@ void populate_session_history_traversal_menu(QMenu& menu, WebContentView& view, 
     append_session_history_traversal_menu_items(menu, view, direction);
 }
 
-QMenu* create_application_menu(QWidget& parent, WebView::Menu& menu, IncludeActionShortcut include_action_shortcut)
+QMenu* create_application_menu(QWidget& parent, WebView::Menu& menu, IncludeActionShortcut include_action_shortcut, IncludeActionIcon include_action_icon)
 {
     auto* application_menu = new QMenu(qstring_from_ak_string(menu.title()), &parent);
-    add_items_to_menu(*application_menu, parent, menu, include_action_shortcut);
+    add_items_to_menu(*application_menu, parent, menu, include_action_shortcut, include_action_icon);
     Thoth::localize_menu(*application_menu);
     return application_menu;
 }
@@ -460,7 +470,13 @@ void update_history_menu(QMenu& menu, WebContentView* view)
 
 QMenu* create_context_menu(QWidget& parent, WebContentView& view, WebView::Menu& menu)
 {
+#if defined(AK_OS_WINDOWS)
+    // Windows context menus show inline icons; building without them leaves only the
+    // special-cased history and clipboard items with icons, and the rest without.
+    auto* application_menu = create_application_menu(parent, menu, IncludeActionShortcut::No, IncludeActionIcon::Yes);
+#else
     auto* application_menu = create_application_menu(parent, menu, IncludeActionShortcut::No);
+#endif
 
     menu.on_activation = [view = QPointer { &view }, application_menu = QPointer { application_menu }](Gfx::IntPoint position) {
         if (view && application_menu)

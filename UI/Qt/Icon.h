@@ -72,7 +72,7 @@ enum class ChromeIcon {
     FolderPlus,
     Update,
     Help,
-
+    SelectAll,
 };
 
 constexpr inline auto ICON_DEVICE_PIXEL_RATIOS = to_array({ 1, 2, 3 });

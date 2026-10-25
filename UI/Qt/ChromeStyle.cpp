@@ -81,6 +81,32 @@ struct MaterialColorAnchors {
 
 static MaterialColorAnchors material_color_anchors(bool dark)
 {
+#if defined(AK_OS_WINDOWS)
+    // NB: The Windows chrome (toolbar row, sidebar and its menus) is themed in Thoth's own
+    //     lavender-gray palette instead of Qt's system palette, so the material anchors have to
+    //     be Thoth-tinted too. With the neutral anchors the mixes below pull every menu and
+    //     popover toward gray, which reads as a different application sitting next to the
+    //     purple-tinted toolbar and sidebar.
+    if (dark) {
+        return {
+            .background = QColor(42, 37, 49),
+            .surface = QColor(48, 43, 56),
+            .recessed = QColor(69, 64, 80),
+            .hover = QColor(61, 55, 69),
+            .pressed = QColor(74, 68, 83),
+            .border = QColor(168, 159, 181),
+        };
+    }
+
+    return {
+        .background = QColor(233, 228, 241),
+        .surface = QColor(251, 250, 253),
+        .recessed = QColor(207, 200, 221),
+        .hover = QColor(228, 223, 236),
+        .pressed = QColor(219, 213, 231),
+        .border = QColor(143, 136, 156),
+    };
+#else
     if (dark) {
         return {
             .background = QColor(13, 15, 18),
@@ -100,6 +126,7 @@ static MaterialColorAnchors material_color_anchors(bool dark)
         .pressed = QColor(219, 220, 221),
         .border = QColor(95, 96, 98),
     };
+#endif
 }
 
 QColor mix(QColor const& from, QColor const& to, double amount)

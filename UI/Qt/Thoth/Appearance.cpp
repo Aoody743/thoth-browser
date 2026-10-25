@@ -92,7 +92,13 @@ QIcon brand_logo_icon(bool dark)
 
 QColor chrome_background(bool dark)
 {
+#if defined(AK_OS_WINDOWS)
+    // Keep in step with ChromeStyle's Windows material anchors: the toolbar row, the sidebar
+    // and every menu must sit on the same lavender-gray surface.
+    return QColor(dark ? "#211e26" : "#ede9f4");
+#else
     return QColor(dark ? "#211f28" : "#f5f4f8");
+#endif
 }
 
 void apply_browser_ui_appearance(QString const& font_id, QString const& palette_id, QString const& icon_weight, QString const& color_scheme)

@@ -138,6 +138,7 @@ static QString chrome_icon_name(ChromeIcon icon)
     case ChromeIcon::FolderPlus: return QStringLiteral("folder-plus");
     case ChromeIcon::Update: return QStringLiteral("cloud-download");
     case ChromeIcon::Help: return QStringLiteral("circle-help");
+    case ChromeIcon::SelectAll: return QStringLiteral("square");
     }
     Q_UNREACHABLE();
 }

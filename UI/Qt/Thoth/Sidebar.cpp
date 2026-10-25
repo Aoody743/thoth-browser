@@ -1145,7 +1145,12 @@ void Sidebar::style_browser_menu()
     auto accent = QColor(browser_palette_accent(qApp->property("ThothColorPalette").toString(), dark));
     if (!accent.isValid())
         accent = Ladybird::ChromeStyle::chrome_accent(palette());
+#if defined(AK_OS_WINDOWS)
+    // Same surface as the toolbar row and the ChromeStyle menus (see material_color_anchors).
+    auto background = dark ? QColor("#211e26") : QColor("#ede9f4");
+#else
     auto background = dark ? QColor("#211f28") : QColor("#f5f4f8");
+#endif
     auto hover = Ladybird::ChromeStyle::mix(background, accent, dark ? 0.14 : 0.09);
     auto selected = Ladybird::ChromeStyle::mix(background, accent, dark ? 0.28 : 0.18);
     auto border = Ladybird::ChromeStyle::mix(background, accent, dark ? 0.62 : 0.48);
@@ -2080,7 +2085,12 @@ void Sidebar::apply_style()
     auto accent = QColor(browser_palette_accent(qApp->property("ThothColorPalette").toString(), dark));
     if (!accent.isValid())
         accent = Ladybird::ChromeStyle::chrome_accent(palette());
+#if defined(AK_OS_WINDOWS)
+    // Same surface as the toolbar row and the ChromeStyle menus (see material_color_anchors).
+    auto background = Ladybird::ChromeStyle::mix(dark ? QColor("#211e26") : QColor("#ede9f4"), tint, dark ? 0.16 : 0.24);
+#else
     auto background = Ladybird::ChromeStyle::mix(dark ? QColor("#211f28") : QColor("#f5f4f8"), tint, dark ? 0.16 : 0.24);
+#endif
     setProperty("ThothSidebarBackground", background.name());
     if (m_reveal_handle) {
         m_reveal_handle->setProperty("ThothSidebarBackground", background.name());
@@ -2097,8 +2107,15 @@ void Sidebar::apply_style()
     auto pressed = Ladybird::ChromeStyle::mix(background, accent, dark ? 0.48 : 0.34);
     auto pressed_border = Ladybird::ChromeStyle::mix(background, accent, dark ? 0.78 : 0.64);
     QString bg = background.name(), fg = dark ? "#e9e5ee" : "#35313d";
+#if defined(AK_OS_WINDOWS)
+    // A hairline in the chrome border color separates the sidebar from the web content; with
+    // border-right: none the two surfaces collide with no boundary between them.
+    auto sidebar_edge = Ladybird::ChromeStyle::style_sheet_color(Ladybird::ChromeStyle::chrome_border(palette()));
+#else
+    auto sidebar_edge = QStringLiteral("none");
+#endif
     setStyleSheet(QString(
-        "QWidget#ThothSidebar { background: %1; color: %2; border-right: none; }"
+        "QWidget#ThothSidebar { background: %1; color: %2; border-right: %10; }"
         "QWidget#ThothSidebar QWidget { color: %2; }"
         "QTreeWidget, QListWidget { background: transparent; border: none; outline: none; }"
         "QTreeView::branch, QTreeView::branch:selected { background: %1; image: none; border: none; }"
@@ -2123,7 +2140,7 @@ void Sidebar::apply_style()
         "QScrollBar:vertical { width: 4px; background: transparent; }"
         "QScrollBar::handle:vertical { background: %4; border-radius: 2px; min-height: 24px; }"
         "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }")
-            .arg(bg, fg, hover.name(), selected.name(), selection_border.name(), dark ? "#a49bac" : "#777181", dark ? "#393541" : "#d9d5e2", pressed.name(), pressed_border.name()));
+            .arg(bg, fg, hover.name(), selected.name(), selection_border.name(), dark ? "#a49bac" : "#777181", dark ? "#393541" : "#d9d5e2", pressed.name(), pressed_border.name(), sidebar_edge));
     if (m_browser_menu_button)
         m_browser_menu_button->setIcon(Ladybird::create_chrome_icon(Ladybird::ChromeIcon::Menu, palette()));
     style_browser_menu();

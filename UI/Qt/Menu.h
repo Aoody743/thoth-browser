@@ -28,7 +28,7 @@ enum class IncludeActionShortcut : u8 {
     Yes,
 };
 
-QMenu* create_application_menu(QWidget& parent, WebView::Menu&, IncludeActionShortcut = IncludeActionShortcut::Yes);
+QMenu* create_application_menu(QWidget& parent, WebView::Menu&, IncludeActionShortcut = IncludeActionShortcut::Yes, IncludeActionIcon = IncludeActionIcon::No);
 void repopulate_application_menu(QMenu& menu, QWidget& parent, WebView::Menu& source, IncludeActionShortcut = IncludeActionShortcut::Yes);
 void update_history_menu(QMenu& menu, WebContentView*);
 void populate_session_history_traversal_menu(QMenu& menu, WebContentView&, int direction);
