@@ -503,8 +503,11 @@ pub(crate) fn scrollbar_colors_for_paint(
             background_color = background_color.blend(color);
         }
     }
-    let black_thumb = Color::from_rgb(0, 0, 0).with_alpha(128);
-    let white_thumb = Color::from_rgb(255, 255, 255).with_alpha(128);
+    // NB: Half-transparent thumbs read as loud solid bars on both dark and light pages, and on
+    //     dark themes in particular the white thumb dominates the page edge. A quieter alpha keeps
+    //     the scrollbar legible without pulling attention away from the content.
+    let black_thumb = Color::from_rgb(0, 0, 0).with_alpha(96);
+    let white_thumb = Color::from_rgb(255, 255, 255).with_alpha(96);
     let black_contrast = background_color.contrast_ratio(background_color.blend(black_thumb));
     let white_contrast = background_color.contrast_ratio(background_color.blend(white_thumb));
     let thumb = if black_contrast >= white_contrast {
@@ -512,5 +515,5 @@ pub(crate) fn scrollbar_colors_for_paint(
     } else {
         white_thumb
     };
-    (thumb, thumb.with_alpha(25))
+    (thumb, thumb.with_alpha(18))
 }

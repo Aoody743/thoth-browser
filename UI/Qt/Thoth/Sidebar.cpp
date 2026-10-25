@@ -2465,7 +2465,11 @@ void Sidebar::rebuild_workspaces()
         button->setIconSize({ 19, 19 });
         button->setIcon(workspace_icon(space, dark));
         button->setAccessibleName("Workspace " + space.name);
+#if defined(Q_OS_WIN)
+        button->setToolTip(space.name + (n < 9 ? QString(" · Ctrl+Alt+%1").arg(n + 1) : QString {}));
+#else
         button->setToolTip(space.name + (n < 9 ? QString(" · ⌘⌥%1").arg(n + 1) : QString {}));
+#endif
         Thoth::localize_widget_tree(*button);
         button->setProperty("workspaceActive", space.id == m_model.active_workspace);
         button->setAcceptDrops(true);

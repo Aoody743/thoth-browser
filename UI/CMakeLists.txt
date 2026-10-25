@@ -16,14 +16,18 @@ function(create_ladybird_bundle target_name)
     if(THOTH_VERSION STREQUAL "0.9.1")
         unset(THOTH_VERSION CACHE)
     endif()
-    set(THOTH_BUNDLE_VERSION "2610.23.7" CACHE STRING "Monotonically increasing Thoth build number")
-    set(THOTH_VERSION "0.9.2" CACHE STRING "Thoth release version")
+    set(THOTH_BUNDLE_VERSION "2610.25.1" CACHE STRING "Monotonically increasing Thoth build number")
+    set(THOTH_VERSION "0.9.5" CACHE STRING "Thoth release version")
     set(THOTH_UPDATE_FEED_URL "https://github.com/Aoody743/thoth-browser/releases/download/updates/appcast.xml" CACHE STRING "HTTPS Sparkle appcast URL (empty to disable)")
     if(THOTH_UPDATE_FEED_URL AND NOT THOTH_UPDATE_FEED_URL MATCHES "^https://[^/]+/")
         message(FATAL_ERROR "THOTH_UPDATE_FEED_URL must use HTTPS")
     endif()
     set(THOTH_UPDATE_PUBLIC_KEY "0+AVfDBTadD1wvuHtw/2+PhPZPCR8GAculFkIQK/4/w=" CACHE STRING "Sparkle Ed25519 public key")
-    target_compile_definitions(${target_name} PRIVATE "THOTH_DISPLAY_VERSION=\"${THOTH_VERSION} preview (${THOTH_BUNDLE_VERSION})\"")
+    target_compile_definitions(${target_name} PRIVATE
+        "THOTH_DISPLAY_VERSION=\"${THOTH_VERSION} preview (${THOTH_BUNDLE_VERSION})\""
+        "THOTH_VERSION=\"${THOTH_VERSION}\""
+        "THOTH_UPDATE_CHECK_URL=\"https://api.github.com/repos/Aoody743/thoth-browser/releases?per_page=15\""
+    )
     if (APPLE)
         set(THOTH_MACOS_DEPLOYMENT_TARGET "${CMAKE_OSX_DEPLOYMENT_TARGET}")
         configure_file(

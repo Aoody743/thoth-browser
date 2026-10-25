@@ -54,8 +54,12 @@ elseif (LADYBIRD_AUDIO_BACKEND STREQUAL "AUDIO_UNIT")
     find_library(CORE_FOUNDATION CoreFoundation REQUIRED)
     target_link_libraries(audioserverservice PRIVATE ${AUDIO_TOOLBOX} ${CORE_AUDIO} ${CORE_FOUNDATION})
 elseif (LADYBIRD_AUDIO_BACKEND STREQUAL "WASAPI")
-    target_sources(audioserverservice PRIVATE PlaybackStreamWasapi.cpp)
-    target_compile_definitions(audioserverservice PRIVATE AUDIOSERVER_PLAYBACK_BACKEND=1)
+    target_sources(audioserverservice PRIVATE
+        AudioDevicesWASAPI.cpp
+        PlaybackStreamWasapi.cpp
+        RecordStreamWASAPI.cpp
+    )
+    target_compile_definitions(audioserverservice PRIVATE AUDIOSERVER_PLAYBACK_BACKEND=1 AUDIOSERVER_CAPTURE_BACKEND=1 AUDIOSERVER_DEVICE_WATCH=1)
     target_link_libraries(audioserverservice PRIVATE ole32 avrt winmm)
 elseif (DEFINED LADYBIRD_AUDIO_BACKEND)
     message(FATAL_ERROR "Please update ${CMAKE_CURRENT_LIST_FILE} for audio backend ${LADYBIRD_AUDIO_BACKEND}")

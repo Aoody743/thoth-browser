@@ -1500,6 +1500,12 @@ void WebContentView::resizeEvent(QResizeEvent* event)
         self->m_viewport_push_pending = false;
         self->update_viewport_size();
     });
+#ifdef LADYBIRD_QT_USE_RHI_WIDGET
+    // The RHI render target follows the widget size immediately, but the first frame at the new
+    // size only arrives once WebContent relayouts and the compositor pushes it. Render right away
+    // so the exposed area gets the page background instead of stale uninitialized surface.
+    update();
+#endif
 }
 
 void WebContentView::set_viewport_rect(Gfx::IntRect rect)

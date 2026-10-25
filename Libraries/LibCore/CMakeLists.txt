@@ -112,6 +112,10 @@ endif()
 
 ladybird_lib(LibCore core EXPLICIT_SYMBOL_EXPORT)
 target_link_libraries(LibCore PRIVATE Threads::Threads LibUnicode LibTextCodec)
+if (WIN32)
+    # CrashHandlerWindows walks stacks and writes minidumps through dbghelp.
+    target_link_libraries(LibCore PRIVATE dbghelp)
+endif()
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "NetBSD")
     # NetBSD has its shm_open and shm_unlink functions in librt so we need to link that
@@ -147,6 +151,8 @@ endif()
 
 if ((APPLE AND NOT IOS) OR LINUX)
     target_sources(LibCore PRIVATE CrashHandlerPOSIX.cpp)
+elseif (WIN32)
+    target_sources(LibCore PRIVATE CrashHandlerWindows.cpp)
 else()
     target_sources(LibCore PRIVATE CrashHandlerUnimplemented.cpp)
 endif()
