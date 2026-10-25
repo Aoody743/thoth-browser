@@ -210,7 +210,7 @@ public:
                 painter->drawLine(rect.left() + 8, rect.top() + 3, rect.right() - 8, rect.top() + 3);
                 rect.setTop(rect.top() + 10);
             }
-            auto ink = dark ? QColor("#a39bad") : QColor("#8d8598");
+            auto ink = dark ? QColor("#a4a5aa") : QColor("#8e8f94");
             Ladybird::create_chrome_icon(Ladybird::ChromeIcon::NewTab, option.palette).paint(painter, QRect(rect.left() + 7, rect.center().y() - 9, 18, 18));
             painter->setPen(ink);
             painter->drawText(rect.adjusted(32, 0, -8, 0), Qt::AlignVCenter, Thoth::localized_text("New Tab"));
@@ -257,7 +257,7 @@ public:
         };
         painter->setPen(Qt::NoPen);
         if (pages.size() == 2) {
-            painter->setBrush(dark ? QColor("#34323f") : QColor("#dfdce8"));
+            painter->setBrush(dark ? QColor("#333438") : QColor("#dfdfdf"));
             painter->drawRoundedRect(rect, 10, 10);
             auto icons = index.data(ICONS_ROLE).toList();
             auto titles = index.data(TITLES_ROLE).toStringList();
@@ -268,13 +268,13 @@ public:
             for (int n = 0; n < 2; ++n) {
                 auto chip = QRect(rect.x() + n * rect.width() / 2 + 3, rect.y() + 3, rect.width() / 2 - 6, rect.height() - 6);
                 if (selected && pages[n] == index.data(ACTIVE_ROLE).toString()) {
-                    painter->setBrush(dark ? QColor("#514b60") : QColor("#f8f7fc"));
+                    painter->setBrush(dark ? QColor("#505156") : QColor("#f8f8f9"));
                     painter->drawRoundedRect(chip, 7, 7);
                 }
                 if (n < icons.size())
                     paint_rounded_icon(painter, icons[n].value<QIcon>(), QRect(chip.x() + 6, chip.center().y() - 8, 16, 16));
                 auto text = chip.adjusted(26, 0, -5, 0);
-                painter->setPen(dark ? QColor("#eeeaf6") : QColor("#34313f"));
+                painter->setPen(dark ? QColor("#ebeef1") : QColor("#34353a"));
                 painter->drawText(text, Qt::AlignVCenter | Qt::AlignLeft, metrics.elidedText(titles.value(n), Qt::ElideRight, text.width()));
                 painter->setPen(Qt::NoPen);
                 if (loading_pages.contains(page_ids.value(n)))
@@ -282,7 +282,7 @@ public:
             }
         } else {
             if (selected || hovered) {
-                painter->setBrush(dark ? QColor(selected ? "#403a4c" : "#302d39") : QColor(selected ? "#dfdbe9" : "#e6e3ed"));
+                painter->setBrush(dark ? QColor(selected ? "#414248" : "#313236") : QColor(selected ? "#dfdfdf" : "#e7e7e8"));
                 painter->drawRoundedRect(rect, 8, 8);
             }
             auto folder = index.data(PAGE_ROLE).toString() == "folder";
@@ -296,7 +296,7 @@ public:
             } else {
                 paint_rounded_icon(painter, index.data(Qt::DecorationRole).value<QIcon>(), QRect(rect.left() + 9, rect.center().y() - 9, 18, 18));
             }
-            painter->setPen(dark ? QColor("#e5e1ed") : QColor("#3b3744"));
+            painter->setPen(dark ? QColor("#e8e9eb") : QColor("#3a3b40"));
             painter->drawText(text_rect, Qt::AlignVCenter | Qt::AlignLeft, QFontMetrics(painter->font()).elidedText(index.data().toString(), Qt::ElideRight, text_rect.width()));
             if (!folder && loading_pages.contains(page_ids.value(0)))
                 draw_loading_ring(QRectF(rect), 8);
@@ -323,8 +323,8 @@ public:
         auto rect = option.rect.adjusted(2, 2, -2, -2);
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
-        auto tile = dark ? QColor(selected ? "#484052" : hovered ? "#393542" : "#302d38") : QColor(selected ? "#ded9e8" : hovered ? "#e5e1ec" : "#eae7f1");
-        painter->setPen(selected ? QPen(dark ? QColor("#716584") : QColor("#c5bbd4"), 1) : Qt::NoPen);
+        auto tile = dark ? QColor(selected ? "#48484e" : hovered ? "#3a3b3f" : "#303134") : QColor(selected ? "#dedde0" : hovered ? "#e5e1ec" : "#ebebec");
+        painter->setPen(selected ? QPen(dark ? QColor("#717278") : QColor("#c6c6ca"), 1) : Qt::NoPen);
         painter->setBrush(tile);
         painter->drawRoundedRect(rect, 10, 10);
         auto icon = index.data(Qt::DecorationRole).value<QIcon>();
@@ -356,7 +356,7 @@ protected:
             background = palette().color(QPalette::Window);
         background.setAlpha(255);
         painter.fillRect(rect(), background);
-        auto color = Ladybird::ChromeStyle::is_dark(palette()) ? QColor("#d8cdea") : QColor("#665c78");
+        auto color = Ladybird::ChromeStyle::is_dark(palette()) ? QColor("#d9dadc") : QColor("#68696f");
         color.setAlpha(pressed ? 238 : 165);
         painter.setPen(Qt::NoPen);
         painter.setBrush(color);
@@ -819,13 +819,16 @@ Sidebar::Sidebar(Ladybird::TabWidget& tabs, QStackedWidget& navigation)
     top->addWidget(m_navigation_buttons, 1);
     layout->addWidget(top_widget);
 #if defined(Q_OS_WIN)
-    // Windows uses a full-width browser toolbar above the workspace pane.
-    top_widget->hide();
+    // Windows uses a full-width browser toolbar above the workspace pane. Keep a slim reserved
+    // strip here instead of hiding the bar entirely, so the workspace header is not glued to the
+    // toolbar row; the strip also stays a window-drag region.
+    top_widget->setFixedHeight(12);
+    m_navigation_buttons->hide();
 #endif
     m_body = new QWidget(this);
     m_body->setProperty("LadybirdWindowDragRegion", true);
     auto* body = new QVBoxLayout(m_body);
-    body->setContentsMargins(0, 0, 0, 0);
+    body->setContentsMargins(0, 4, 0, 0);
     body->setSpacing(8);
 #if !defined(Q_OS_WIN)
     body->addWidget(&m_navigation);
@@ -1147,15 +1150,15 @@ void Sidebar::style_browser_menu()
         accent = Ladybird::ChromeStyle::chrome_accent(palette());
 #if defined(AK_OS_WINDOWS)
     // Same surface as the toolbar row and the ChromeStyle menus (see material_color_anchors).
-    auto background = dark ? QColor("#211e26") : QColor("#ede9f4");
+    auto background = dark ? QColor("#202124") : QColor("#f1f0ee");
 #else
-    auto background = dark ? QColor("#211f28") : QColor("#f5f4f8");
+    auto background = dark ? QColor("#202124") : QColor("#f1f0ee");
 #endif
     auto hover = Ladybird::ChromeStyle::mix(background, accent, dark ? 0.14 : 0.09);
     auto selected = Ladybird::ChromeStyle::mix(background, accent, dark ? 0.28 : 0.18);
     auto border = Ladybird::ChromeStyle::mix(background, accent, dark ? 0.62 : 0.48);
     m_browser_menu->setPalette(palette());
-    m_browser_menu->setStyleSheet(sidebar_menu_style_sheet(background, dark ? QColor("#e9e5ee") : QColor("#35313d"), hover, selected, border, dark ? QColor("#a49bac") : QColor("#777181"), dark ? QColor("#393541") : QColor("#d9d5e2")));
+    m_browser_menu->setStyleSheet(sidebar_menu_style_sheet(background, dark ? QColor("#e8eaed") : QColor("#34353a"), hover, selected, border, dark ? QColor("#a4a5aa") : QColor("#77787d"), dark ? QColor("#3a3b40") : QColor("#d9d9da")));
 }
 QString Sidebar::page_id(Ladybird::Tab* tab) const
 {
@@ -2086,10 +2089,12 @@ void Sidebar::apply_style()
     if (!accent.isValid())
         accent = Ladybird::ChromeStyle::chrome_accent(palette());
 #if defined(AK_OS_WINDOWS)
-    // Same surface as the toolbar row and the ChromeStyle menus (see material_color_anchors).
-    auto background = Ladybird::ChromeStyle::mix(dark ? QColor("#211e26") : QColor("#ede9f4"), tint, dark ? 0.16 : 0.24);
+    // Exactly the surface the toolbar row sits on (ChromeStyle tints it toward the palette
+    // accent); the workspace color stays in the selection and icons instead of the surface, so
+    // the toolbar and the sidebar can never drift apart again.
+    auto background = Ladybird::ChromeStyle::chrome_background(palette());
 #else
-    auto background = Ladybird::ChromeStyle::mix(dark ? QColor("#211f28") : QColor("#f5f4f8"), tint, dark ? 0.16 : 0.24);
+    auto background = Ladybird::ChromeStyle::mix(dark ? QColor("#202124") : QColor("#f1f0ee"), tint, dark ? 0.16 : 0.24);
 #endif
     setProperty("ThothSidebarBackground", background.name());
     if (m_reveal_handle) {
@@ -2106,7 +2111,7 @@ void Sidebar::apply_style()
     auto selection_border = Ladybird::ChromeStyle::mix(background, accent, dark ? 0.62 : 0.48);
     auto pressed = Ladybird::ChromeStyle::mix(background, accent, dark ? 0.48 : 0.34);
     auto pressed_border = Ladybird::ChromeStyle::mix(background, accent, dark ? 0.78 : 0.64);
-    QString bg = background.name(), fg = dark ? "#e9e5ee" : "#35313d";
+    QString bg = background.name(), fg = dark ? "#e8eaed" : "#34353a";
 #if defined(AK_OS_WINDOWS)
     // A hairline in the chrome border color separates the sidebar from the web content; with
     // border-right: none the two surfaces collide with no boundary between them.
@@ -2140,7 +2145,7 @@ void Sidebar::apply_style()
         "QScrollBar:vertical { width: 4px; background: transparent; }"
         "QScrollBar::handle:vertical { background: %4; border-radius: 2px; min-height: 24px; }"
         "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }")
-            .arg(bg, fg, hover.name(), selected.name(), selection_border.name(), dark ? "#a49bac" : "#777181", dark ? "#393541" : "#d9d5e2", pressed.name(), pressed_border.name(), sidebar_edge));
+            .arg(bg, fg, hover.name(), selected.name(), selection_border.name(), dark ? "#a4a5aa" : "#77787d", dark ? "#3a3b40" : "#d9d9da", pressed.name(), pressed_border.name(), sidebar_edge));
     if (m_browser_menu_button)
         m_browser_menu_button->setIcon(Ladybird::create_chrome_icon(Ladybird::ChromeIcon::Menu, palette()));
     style_browser_menu();
@@ -2299,10 +2304,10 @@ void Sidebar::new_page()
     auto accent = QColor(browser_palette_accent(qApp->property("ThothColorPalette").toString(), dark));
     if (!accent.isValid())
         accent = Ladybird::ChromeStyle::chrome_accent(palette());
-    auto card_color = dark ? QColor("#24212c") : QColor("#fffefe");
+    auto card_color = dark ? QColor("#25262a") : QColor("#ffffff");
     auto outline = Ladybird::ChromeStyle::mix(card_color, accent, dark ? 0.36 : 0.24);
-    auto ink = dark ? QColor("#f2eef7") : QColor("#35313c");
-    auto muted = dark ? QColor("#aaa3b3") : QColor("#77717f");
+    auto ink = dark ? QColor("#eef0f2") : QColor("#34353a");
+    auto muted = dark ? QColor("#a4a5aa") : QColor("#77787d");
     auto input_color = dark ? QColor("#302c39") : QColor("#f7f5fa");
 
     // Keep the prompt outside the splitter, but make it a child of TabWidget.

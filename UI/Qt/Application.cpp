@@ -27,6 +27,8 @@
 #if defined(AK_OS_MACOS)
 #    include <UI/Qt/MacProxySettings.h>
 #    include <UI/Qt/MacWindow.h>
+#elif defined(AK_OS_WINDOWS)
+#    include <UI/Qt/WindowsProxySettings.h>
 #endif
 
 #include <QAction>
@@ -531,14 +533,19 @@ void Application::show_process_manager()
     m_process_manager_window->activateWindow();
 }
 
-// NB: The proxy configuration is only derived from system settings on macOS, so the request server
-//     options are unused (and would trip -Wunused-parameter) everywhere else.
-void Application::create_platform_options(WebView::BrowserOptions&, [[maybe_unused]] WebView::RequestServerOptions& request_server_options, WebView::WebContentOptions&)
+void Application::create_platform_options(WebView::BrowserOptions&, WebView::RequestServerOptions& request_server_options, WebView::WebContentOptions&)
 {
     Settings::initialize(profile().paths().config);
 #if defined(AK_OS_MACOS)
     auto system_proxy_settings = current_mac_proxy_settings();
     request_server_options.proxy_configuration = request_server_options.proxy_configuration.with_fallback(system_proxy_settings.proxy_configuration);
+#elif defined(AK_OS_WINDOWS)
+    // Follow the WinINET proxy (Settings app / Clash-family proxies) like macOS follows its
+    // system settings; without this every request bypasses the system proxy.
+    auto system_proxy_settings = current_windows_proxy_settings();
+    request_server_options.proxy_configuration = request_server_options.proxy_configuration.with_fallback(system_proxy_settings.proxy_configuration);
+#else
+    (void)request_server_options;
 #endif
 }
 

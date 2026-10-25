@@ -95,9 +95,9 @@ QColor chrome_background(bool dark)
 #if defined(AK_OS_WINDOWS)
     // Keep in step with ChromeStyle's Windows material anchors: the toolbar row, the sidebar
     // and every menu must sit on the same lavender-gray surface.
-    return QColor(dark ? "#211e26" : "#ede9f4");
+    return QColor(dark ? "#202124" : "#f1f0ee");
 #else
-    return QColor(dark ? "#211f28" : "#f5f4f8");
+    return QColor(dark ? "#202124" : "#f1f0ee");
 #endif
 }
 
@@ -130,13 +130,13 @@ void apply_browser_ui_appearance(QString const& font_id, QString const& palette_
         accent = palette_accent("lavender", dark);
 
     QPalette palette = original_palette;
-    auto window = QColor(dark ? "#1c1a21" : "#f6f3fa");
-    auto base = QColor(dark ? "#15141a" : "#fffefd");
-    auto text = QColor(dark ? "#e9e5ee" : "#302d36");
-    auto muted = QColor(dark ? "#a8a2af" : "#77727f");
+    auto window = QColor(dark ? "#1e1f22" : "#f4f3f1");
+    auto base = QColor(dark ? "#161719" : "#fffefd");
+    auto text = QColor(dark ? "#e8eaed" : "#2f3033");
+    auto muted = QColor(dark ? "#a5a6ab" : "#74757a");
     palette.setColor(QPalette::Window, window);
     palette.setColor(QPalette::Base, base);
-    palette.setColor(QPalette::AlternateBase, dark ? QColor("#1c1a21") : QColor("#f6f3fa"));
+    palette.setColor(QPalette::AlternateBase, dark ? QColor("#1e1f22") : QColor("#f4f3f1"));
     palette.setColor(QPalette::Button, window);
     palette.setColor(QPalette::WindowText, text);
     palette.setColor(QPalette::Text, text);

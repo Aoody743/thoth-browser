@@ -84,27 +84,25 @@ static MaterialColorAnchors material_color_anchors(bool dark)
 #if defined(AK_OS_WINDOWS)
     // NB: The Windows chrome (toolbar row, sidebar and its menus) is themed in Thoth's own
     //     lavender-gray palette instead of Qt's system palette, so the material anchors have to
-    //     be Thoth-tinted too. With the neutral anchors the mixes below pull every menu and
-    //     popover toward gray, which reads as a different application sitting next to the
-    //     purple-tinted toolbar and sidebar.
+    //     match the sidebar and toolbar surfaces, which use the same warm-neutral gray.
     if (dark) {
         return {
-            .background = QColor(42, 37, 49),
-            .surface = QColor(48, 43, 56),
-            .recessed = QColor(69, 64, 80),
-            .hover = QColor(61, 55, 69),
-            .pressed = QColor(74, 68, 83),
-            .border = QColor(168, 159, 181),
+            .background = QColor(32, 33, 36),
+            .surface = QColor(41, 42, 45),
+            .recessed = QColor(74, 75, 79),
+            .hover = QColor(53, 54, 58),
+            .pressed = QColor(63, 64, 68),
+            .border = QColor(168, 169, 173),
         };
     }
 
     return {
-        .background = QColor(233, 228, 241),
-        .surface = QColor(251, 250, 253),
-        .recessed = QColor(207, 200, 221),
-        .hover = QColor(228, 223, 236),
-        .pressed = QColor(219, 213, 231),
-        .border = QColor(143, 136, 156),
+        .background = QColor(241, 240, 238),
+        .surface = QColor(255, 255, 255),
+        .recessed = QColor(201, 200, 198),
+        .hover = QColor(232, 231, 229),
+        .pressed = QColor(224, 223, 221),
+        .border = QColor(158, 157, 155),
     };
 #else
     if (dark) {
@@ -146,7 +144,17 @@ QColor chrome_background(QPalette const& palette)
 {
     auto window = chrome_window(palette);
     auto dark = is_dark(palette);
-    return mix(window, material_color_anchors(dark).background, dark ? 0.34 : 0.68);
+    auto background = mix(window, material_color_anchors(dark).background, dark ? 0.34 : 0.68);
+#if defined(AK_OS_WINDOWS)
+    // One color story for the whole chrome: the toolbar row, the sidebar and the frameless
+    // window all sit on this surface, tinted toward the user's chosen palette accent. Each of
+    // the eight palettes therefore yields its own chrome theme, while web content stays neutral
+    // so the page reads as the foreground layer.
+    auto accent = chrome_accent(palette);
+    if (accent.isValid())
+        background = mix(background, accent, dark ? 0.10 : 0.14);
+#endif
+    return background;
 }
 
 QColor chrome_surface(QPalette const& palette)
