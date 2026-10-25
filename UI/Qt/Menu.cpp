@@ -237,6 +237,8 @@ static void initialize_native_control(WebView::Action& action, QAction& qaction,
         break;
 
     case WebView::ActionID::ViewHistory:
+        if (include_action_icon == IncludeActionIcon::Yes)
+            qaction.setIcon(create_chrome_icon(ChromeIcon::History, palette));
 #if defined(AK_OS_MACOS)
         qaction.setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Y));
 #else
@@ -244,6 +246,8 @@ static void initialize_native_control(WebView::Action& action, QAction& qaction,
 #endif
         break;
     case WebView::ActionID::ClearBrowsingData:
+        if (include_action_icon == IncludeActionIcon::Yes)
+            qaction.setIcon(create_chrome_icon(ChromeIcon::Trash, palette));
 #if defined(AK_OS_MACOS)
         qaction.setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Backspace));
 #else
@@ -251,9 +255,13 @@ static void initialize_native_control(WebView::Action& action, QAction& qaction,
 #endif
         break;
     case WebView::ActionID::OpenTaskManager:
+        if (include_action_icon == IncludeActionIcon::Yes)
+            qaction.setIcon(create_chrome_icon(ChromeIcon::Info, palette));
         qaction.setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_M));
         break;
     case WebView::ActionID::OpenSettingsPage:
+        if (include_action_icon == IncludeActionIcon::Yes)
+            qaction.setIcon(create_chrome_icon(ChromeIcon::Settings, palette));
 #if defined(AK_OS_MACOS)
         qaction.setShortcut(QKeySequence::StandardKey::Preferences);
 #else
@@ -261,6 +269,8 @@ static void initialize_native_control(WebView::Action& action, QAction& qaction,
 #endif
         break;
     case WebView::ActionID::ToggleDevTools:
+        if (include_action_icon == IncludeActionIcon::Yes)
+            qaction.setIcon(create_chrome_icon(ChromeIcon::Code, palette));
         qaction.setShortcuts({
             QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I),
             QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_C),
@@ -269,11 +279,12 @@ static void initialize_native_control(WebView::Action& action, QAction& qaction,
         break;
     case WebView::ActionID::ViewSource:
         if (include_action_icon == IncludeActionIcon::Yes)
-            qaction.setIcon(create_chrome_icon(ChromeIcon::File, palette));
+            qaction.setIcon(create_chrome_icon(ChromeIcon::FileText, palette));
         qaction.setShortcut(QKeySequence(Qt::CTRL | Qt::Key_U));
         break;
-
     case WebView::ActionID::ZoomIn: {
+        if (include_action_icon == IncludeActionIcon::Yes)
+            qaction.setIcon(create_chrome_icon(ChromeIcon::NewTab, palette));
         auto zoom_in_shortcuts = QKeySequence::keyBindings(QKeySequence::StandardKey::ZoomIn);
         auto secondary_zoom_in_shortcut = QKeySequence(Qt::CTRL | Qt::Key_Equal);
 
@@ -284,10 +295,39 @@ static void initialize_native_control(WebView::Action& action, QAction& qaction,
         break;
     }
     case WebView::ActionID::ZoomOut:
+        if (include_action_icon == IncludeActionIcon::Yes)
+            qaction.setIcon(create_chrome_icon(ChromeIcon::WindowMinimize, palette));
         qaction.setShortcut(QKeySequence::StandardKey::ZoomOut);
         break;
     case WebView::ActionID::ResetZoom:
+        if (include_action_icon == IncludeActionIcon::Yes)
+            qaction.setIcon(create_chrome_icon(ChromeIcon::Reload, palette));
         qaction.setShortcut(QKeySequence(Qt::CTRL | Qt::Key_0));
+        break;
+    case WebView::ActionID::OpenImage:
+        if (include_action_icon == IncludeActionIcon::Yes)
+            qaction.setIcon(create_chrome_icon(ChromeIcon::Image, palette));
+        break;
+    case WebView::ActionID::CopyImage:
+        if (include_action_icon == IncludeActionIcon::Yes)
+            qaction.setIcon(create_chrome_icon(ChromeIcon::Copy, palette));
+        break;
+    case WebView::ActionID::SaveImage:
+        if (include_action_icon == IncludeActionIcon::Yes)
+            qaction.setIcon(create_chrome_icon(ChromeIcon::Download, palette));
+        break;
+    case WebView::ActionID::CopyURL:
+        if (include_action_icon == IncludeActionIcon::Yes)
+            qaction.setIcon(create_chrome_icon(ChromeIcon::Link, palette));
+        break;
+    case WebView::ActionID::OpenInNewTab:
+        if (include_action_icon == IncludeActionIcon::Yes)
+            qaction.setIcon(create_chrome_icon(ChromeIcon::ExternalLink, palette));
+        break;
+    case WebView::ActionID::DownloadLinkedFile:
+    case WebView::ActionID::DownloadLinkedFileAs:
+        if (include_action_icon == IncludeActionIcon::Yes)
+            qaction.setIcon(create_chrome_icon(ChromeIcon::Download, palette));
         break;
 
     default:
@@ -374,6 +414,10 @@ void populate_session_history_traversal_menu(QMenu& menu, WebContentView& view, 
 
 QMenu* create_application_menu(QWidget& parent, WebView::Menu& menu, IncludeActionShortcut include_action_shortcut, IncludeActionIcon include_action_icon)
 {
+#if defined(AK_OS_WINDOWS)
+    // Application (hamburger) menus carry the same inline icons as context menus on Windows.
+    include_action_icon = IncludeActionIcon::Yes;
+#endif
     auto* application_menu = new QMenu(qstring_from_ak_string(menu.title()), &parent);
     add_items_to_menu(*application_menu, parent, menu, include_action_shortcut, include_action_icon);
     Thoth::localize_menu(*application_menu);

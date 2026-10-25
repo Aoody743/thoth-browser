@@ -694,6 +694,17 @@ private:
     bool m_drop_hover { false };
 };
 
+static QString workspace_icon_for_symbol(QString const& symbol)
+{
+    static QHash<QString, QString> const names {
+        { "orbit", "orbit" }, { "book", "book-open" }, { "diamond", "diamond" }, { "globe", "globe" },
+        { "compass", "compass" }, { "bookmark", "bookmark" }, { "clock", "clock" }, { "heart", "heart" },
+        { "layers", "layers" }, { "zap", "zap" }, { "flame", "flame" }, { "feather", "feather" },
+        { "anchor", "anchor" }, { "gem", "gem" },
+    };
+    return names.value(symbol, "orbit");
+}
+
 static QIcon workspace_icon(Workspace const& space, bool)
 {
     auto color = QColor(space.color);
@@ -703,7 +714,7 @@ static QIcon workspace_icon(Workspace const& space, bool)
         color = color.lighter(155);
     else if (color.lightness() > 220)
         color = color.darker(155);
-    auto name = space.symbol == "book" ? "book-open" : space.symbol == "diamond" ? "diamond" : space.symbol == "globe" ? "globe" : "orbit";
+    auto name = workspace_icon_for_symbol(space.symbol);
     QIcon icon;
     for (auto ratio : Ladybird::ICON_DEVICE_PIXEL_RATIOS)
         icon.addPixmap(Ladybird::library_icon_pixmap(name, color, { 20, 20 }, ratio));
@@ -884,11 +895,10 @@ Sidebar::Sidebar(Ladybird::TabWidget& tabs, QStackedWidget& navigation)
     auto* tree = new SidebarTree(this);
     m_tree = tree;
     tree->setObjectName("ThothPageTree");
-    tree->setColumnCount(2);
-    tree->header()->setStretchLastSection(false);
+    tree->setColumnCount(1);
+    tree->header()->setStretchLastSection(true);
     tree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-    tree->header()->setSectionResizeMode(1, QHeaderView::Fixed);
-    tree->setColumnWidth(1, 30);
+    tree->header()->hide();
     tree->setAccessibleName("Pages and Folders");
     tree->setItemDelegate(new SidebarDelegate(tree));
     tree->setHeaderHidden(true);
@@ -1289,7 +1299,6 @@ void Sidebar::rebuild()
     QSignalBlocker favourite_blocker(m_favourites);
     static_cast<SidebarTree*>(m_tree)->reset_drop_target();
     m_tree->clear();
-    m_tree->setColumnWidth(1, 30);
     m_favourites->clear();
     auto* pinned = new QTreeWidgetItem(m_tree);
     pinned->setData(0, SECTION_ROLE, "pinned");
@@ -1376,7 +1385,7 @@ void Sidebar::rebuild()
         if (!i.folder) {
             auto* actions = new SidebarRowActions(m_tree, node, Ladybird::create_chrome_icon(Ladybird::ChromeIcon::TabClose, palette()), localized_text("Close Tab") + " · " + label(i));
             connect(actions->close_button(), &QToolButton::clicked, this, [this, id = i.id] { close_item(id); });
-            m_tree->setItemWidget(node, 1, actions);
+            m_tree->setItemWidget(node, 0, actions);
             for (auto const& pid : i.pages) {
                 auto* tab = m_live.value(pid).data();
                 if (!tab || (tab->view().audio_play_state() != Web::HTML::AudioPlayState::Playing && tab->view().page_mute_state() != Web::HTML::MuteState::Muted))
@@ -1395,7 +1404,6 @@ void Sidebar::rebuild()
                     rebuild();
                 });
                 actions->add_audio_button(mute);
-                m_tree->setColumnWidth(1, 56);
                 break;
             }
         }
@@ -1817,7 +1825,12 @@ void Sidebar::set_outer_splitter(QSplitter* splitter)
             if (m_model.collapsed) {
                 m_hover_outside_ms = 0;
                 m_hover_timer->start();
+                return;
             }
+            // The animation ran while the collapse path still held maximumWidth at zero, so
+            // QSplitter clamped every setSizes() call to nothing. Re-request the expanded width
+            // now that the width limits are back.
+            m_outer->setSizes({ m_model.width, std::max(200, m_outer->width() - m_model.width - m_outer->handleWidth()) });
             return;
         }
         update_compact_header();
@@ -2544,8 +2557,8 @@ void Sidebar::workspace_menu(QString const& id, QPoint point)
                 set_workspace_color(color);
         });
         auto* symbols = menu.addMenu("Icon");
-        for (auto const& symbol : { QString("orbit"), QString("book"), QString("globe"), QString("diamond") }) {
-            auto* action = symbols->addAction(symbol.left(1).toUpper() + symbol.mid(1));
+        for (auto const& symbol : { QString("orbit"), QString("book"), QString("globe"), QString("diamond"), QString("compass"), QString("bookmark"), QString("clock"), QString("heart"), QString("layers"), QString("zap"), QString("flame"), QString("feather"), QString("anchor"), QString("gem") }) {
+            auto* action = symbols->addAction(workspace_icon_for_symbol(symbol), symbol.left(1).toUpper() + symbol.mid(1));
             action->setCheckable(true);
             action->setChecked(space->symbol == symbol);
             connect(action, &QAction::triggered, this, [this, id, symbol] { if (auto* current=m_model.workspace(id)) { current->symbol=symbol; rebuild_workspaces(); save(); } });
@@ -2577,7 +2590,8 @@ void Sidebar::create_workspace()
     if (!prompt_for_name(this, "New Workspace", "Workspace name", {}, "Create", name))
         return;
     QStringList colors { "#b9a5df", "#a8c8ae", "#9fbbe0", "#d7a7b8", "#d7bb82" };
-    auto id = m_model.add_workspace(name, colors[m_model.workspaces.size() % colors.size()], m_model.workspaces.size() % 2 ? "book" : "globe");
+    static QStringList const default_workspace_symbols { "orbit", "book", "globe", "diamond", "compass", "clock" };
+    auto id = m_model.add_workspace(name, colors[m_model.workspaces.size() % colors.size()], default_workspace_symbols[m_model.workspaces.size() % default_workspace_symbols.size()]);
     switch_workspace(id);
 }
 void Sidebar::page_removal_finished()

@@ -28,6 +28,9 @@ public:
         , m_index(tree->indexFromItem(row, 0))
     {
         setAutoFillBackground(false);
+        // The widget overlays the whole row. Clicks on the row surface are forwarded to the
+        // tree viewport (so selection, double-click and drags keep working), while the child
+        // buttons receive their own events as usual.
         m_layout = new QHBoxLayout(this);
         m_layout->setContentsMargins(0, 0, 2, 0);
         m_layout->setSpacing(2);
@@ -72,6 +75,28 @@ public:
     }
 
 protected:
+    void mousePressEvent(QMouseEvent* event) override { forward_to_viewport(event); }
+    void mouseReleaseEvent(QMouseEvent* event) override { forward_to_viewport(event); }
+    void mouseDoubleClickEvent(QMouseEvent* event) override { forward_to_viewport(event); }
+    void mouseMoveEvent(QMouseEvent* event) override { forward_to_viewport(event); }
+    void contextMenuEvent(QContextMenuEvent* event) override
+    {
+        // Row context menu lives in the tree; re-dispatch at the same global position.
+        auto global = event->globalPos();
+        QContextMenuEvent forwarded(event->reason(), m_tree->viewport()->mapFromGlobal(global), global);
+        QApplication::sendEvent(m_tree->viewport(), &forwarded);
+    }
+
+    void forward_to_viewport(QMouseEvent* event)
+    {
+        if (!m_tree)
+            return;
+        auto target = m_tree->viewport()->mapFromGlobal(event->globalPosition().toPoint());
+        QMouseEvent forwarded(event->type(), target, event->globalPosition(), event->button(),
+            event->buttons(), event->modifiers());
+        QApplication::sendEvent(m_tree->viewport(), &forwarded);
+    }
+
     bool eventFilter(QObject* object, QEvent* event) override
     {
         if (!m_tree || !m_index.isValid())

@@ -374,7 +374,10 @@ OwnPtr<VSyncScheduler> create_vsync_scheduler(Optional<u64> display_id, Function
 
 namespace {
 
-static constexpr int dwm_flush_idle_stop_delay_ms = 250;
+// NB: Tearing the vsync thread down after 250 ms of idleness made every interactive resize
+    //     stall until the thread was rebuilt, because the frames the page pushes during the drag
+    //     had to wait for a fresh thread before they could be presented.
+static constexpr int dwm_flush_idle_stop_delay_ms = 4000;
 static constexpr int dwm_flush_frame_interval_ms = 16;
 
 using DwmFlushProc = HRESULT(WINAPI*)();

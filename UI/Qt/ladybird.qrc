@@ -10,6 +10,12 @@
         <file>OrcaScripts/Ladybird/script.py</file>
         <file>OrcaScripts/Ladybird/script_utilities.py</file>
         <file>OrcaScripts/orca_customizations_bootstrap.py</file>
+                <file>Thoth/Icons/lucide/anchor-expressive.png</file>
+        <file>Thoth/Icons/lucide/anchor-fine.png</file>
+        <file>Thoth/Icons/lucide/anchor-regular.png</file>
+        <file>Thoth/Icons/lucide/archive-expressive.png</file>
+        <file>Thoth/Icons/lucide/archive-fine.png</file>
+        <file>Thoth/Icons/lucide/archive-regular.png</file>
         <file>Thoth/Icons/lucide/arrow-down-to-line-expressive.png</file>
         <file>Thoth/Icons/lucide/arrow-down-to-line-fine.png</file>
         <file>Thoth/Icons/lucide/arrow-down-to-line-regular.png</file>
@@ -19,9 +25,18 @@
         <file>Thoth/Icons/lucide/arrow-right-expressive.png</file>
         <file>Thoth/Icons/lucide/arrow-right-fine.png</file>
         <file>Thoth/Icons/lucide/arrow-right-regular.png</file>
+        <file>Thoth/Icons/lucide/bell-expressive.png</file>
+        <file>Thoth/Icons/lucide/bell-fine.png</file>
+        <file>Thoth/Icons/lucide/bell-regular.png</file>
         <file>Thoth/Icons/lucide/book-open-expressive.png</file>
         <file>Thoth/Icons/lucide/book-open-fine.png</file>
         <file>Thoth/Icons/lucide/book-open-regular.png</file>
+        <file>Thoth/Icons/lucide/bookmark-expressive.png</file>
+        <file>Thoth/Icons/lucide/bookmark-fine.png</file>
+        <file>Thoth/Icons/lucide/bookmark-regular.png</file>
+        <file>Thoth/Icons/lucide/box-expressive.png</file>
+        <file>Thoth/Icons/lucide/box-fine.png</file>
+        <file>Thoth/Icons/lucide/box-regular.png</file>
         <file>Thoth/Icons/lucide/camera-expressive.png</file>
         <file>Thoth/Icons/lucide/camera-fine.png</file>
         <file>Thoth/Icons/lucide/camera-regular.png</file>
@@ -46,9 +61,18 @@
         <file>Thoth/Icons/lucide/circle-help-fine.png</file>
         <file>Thoth/Icons/lucide/circle-help-regular.png</file>
         <file>Thoth/Icons/lucide/circle-regular.png</file>
+        <file>Thoth/Icons/lucide/clock-expressive.png</file>
+        <file>Thoth/Icons/lucide/clock-fine.png</file>
+        <file>Thoth/Icons/lucide/clock-regular.png</file>
         <file>Thoth/Icons/lucide/cloud-download-expressive.png</file>
         <file>Thoth/Icons/lucide/cloud-download-fine.png</file>
         <file>Thoth/Icons/lucide/cloud-download-regular.png</file>
+        <file>Thoth/Icons/lucide/code-expressive.png</file>
+        <file>Thoth/Icons/lucide/code-fine.png</file>
+        <file>Thoth/Icons/lucide/code-regular.png</file>
+        <file>Thoth/Icons/lucide/compass-expressive.png</file>
+        <file>Thoth/Icons/lucide/compass-fine.png</file>
+        <file>Thoth/Icons/lucide/compass-regular.png</file>
         <file>Thoth/Icons/lucide/copy-expressive.png</file>
         <file>Thoth/Icons/lucide/copy-fine.png</file>
         <file>Thoth/Icons/lucide/copy-regular.png</file>
@@ -58,27 +82,57 @@
         <file>Thoth/Icons/lucide/external-link-expressive.png</file>
         <file>Thoth/Icons/lucide/external-link-fine.png</file>
         <file>Thoth/Icons/lucide/external-link-regular.png</file>
+        <file>Thoth/Icons/lucide/feather-expressive.png</file>
+        <file>Thoth/Icons/lucide/feather-fine.png</file>
+        <file>Thoth/Icons/lucide/feather-regular.png</file>
         <file>Thoth/Icons/lucide/file-expressive.png</file>
         <file>Thoth/Icons/lucide/file-fine.png</file>
         <file>Thoth/Icons/lucide/file-regular.png</file>
+        <file>Thoth/Icons/lucide/file-text-expressive.png</file>
+        <file>Thoth/Icons/lucide/file-text-fine.png</file>
+        <file>Thoth/Icons/lucide/file-text-regular.png</file>
+        <file>Thoth/Icons/lucide/flame-expressive.png</file>
+        <file>Thoth/Icons/lucide/flame-fine.png</file>
+        <file>Thoth/Icons/lucide/flame-regular.png</file>
+        <file>Thoth/Icons/lucide/folder-closed-expressive.png</file>
+        <file>Thoth/Icons/lucide/folder-closed-fine.png</file>
+        <file>Thoth/Icons/lucide/folder-closed-regular.png</file>
         <file>Thoth/Icons/lucide/folder-expressive.png</file>
         <file>Thoth/Icons/lucide/folder-fine.png</file>
         <file>Thoth/Icons/lucide/folder-plus-expressive.png</file>
         <file>Thoth/Icons/lucide/folder-plus-fine.png</file>
         <file>Thoth/Icons/lucide/folder-plus-regular.png</file>
         <file>Thoth/Icons/lucide/folder-regular.png</file>
+        <file>Thoth/Icons/lucide/gem-expressive.png</file>
+        <file>Thoth/Icons/lucide/gem-fine.png</file>
+        <file>Thoth/Icons/lucide/gem-regular.png</file>
         <file>Thoth/Icons/lucide/globe-expressive.png</file>
         <file>Thoth/Icons/lucide/globe-fine.png</file>
         <file>Thoth/Icons/lucide/globe-regular.png</file>
+        <file>Thoth/Icons/lucide/heart-expressive.png</file>
+        <file>Thoth/Icons/lucide/heart-fine.png</file>
+        <file>Thoth/Icons/lucide/heart-regular.png</file>
         <file>Thoth/Icons/lucide/history-expressive.png</file>
         <file>Thoth/Icons/lucide/history-fine.png</file>
         <file>Thoth/Icons/lucide/history-regular.png</file>
         <file>Thoth/Icons/lucide/house-expressive.png</file>
         <file>Thoth/Icons/lucide/house-fine.png</file>
         <file>Thoth/Icons/lucide/house-regular.png</file>
+        <file>Thoth/Icons/lucide/image-expressive.png</file>
+        <file>Thoth/Icons/lucide/image-fine.png</file>
+        <file>Thoth/Icons/lucide/image-regular.png</file>
         <file>Thoth/Icons/lucide/info-expressive.png</file>
         <file>Thoth/Icons/lucide/info-fine.png</file>
         <file>Thoth/Icons/lucide/info-regular.png</file>
+        <file>Thoth/Icons/lucide/layers-expressive.png</file>
+        <file>Thoth/Icons/lucide/layers-fine.png</file>
+        <file>Thoth/Icons/lucide/layers-regular.png</file>
+        <file>Thoth/Icons/lucide/layout-grid-expressive.png</file>
+        <file>Thoth/Icons/lucide/layout-grid-fine.png</file>
+        <file>Thoth/Icons/lucide/layout-grid-regular.png</file>
+        <file>Thoth/Icons/lucide/lightbulb-expressive.png</file>
+        <file>Thoth/Icons/lucide/lightbulb-fine.png</file>
+        <file>Thoth/Icons/lucide/lightbulb-regular.png</file>
         <file>Thoth/Icons/lucide/link-expressive.png</file>
         <file>Thoth/Icons/lucide/link-fine.png</file>
         <file>Thoth/Icons/lucide/link-regular.png</file>
@@ -94,6 +148,9 @@
         <file>Thoth/Icons/lucide/menu-expressive.png</file>
         <file>Thoth/Icons/lucide/menu-fine.png</file>
         <file>Thoth/Icons/lucide/menu-regular.png</file>
+        <file>Thoth/Icons/lucide/message-circle-expressive.png</file>
+        <file>Thoth/Icons/lucide/message-circle-fine.png</file>
+        <file>Thoth/Icons/lucide/message-circle-regular.png</file>
         <file>Thoth/Icons/lucide/mic-expressive.png</file>
         <file>Thoth/Icons/lucide/mic-fine.png</file>
         <file>Thoth/Icons/lucide/mic-regular.png</file>
@@ -103,6 +160,9 @@
         <file>Thoth/Icons/lucide/moon-expressive.png</file>
         <file>Thoth/Icons/lucide/moon-fine.png</file>
         <file>Thoth/Icons/lucide/moon-regular.png</file>
+        <file>Thoth/Icons/lucide/music-expressive.png</file>
+        <file>Thoth/Icons/lucide/music-fine.png</file>
+        <file>Thoth/Icons/lucide/music-regular.png</file>
         <file>Thoth/Icons/lucide/orbit-expressive.png</file>
         <file>Thoth/Icons/lucide/orbit-fine.png</file>
         <file>Thoth/Icons/lucide/orbit-regular.png</file>
@@ -127,6 +187,9 @@
         <file>Thoth/Icons/lucide/plus-expressive.png</file>
         <file>Thoth/Icons/lucide/plus-fine.png</file>
         <file>Thoth/Icons/lucide/plus-regular.png</file>
+        <file>Thoth/Icons/lucide/printer-expressive.png</file>
+        <file>Thoth/Icons/lucide/printer-fine.png</file>
+        <file>Thoth/Icons/lucide/printer-regular.png</file>
         <file>Thoth/Icons/lucide/rotate-cw-expressive.png</file>
         <file>Thoth/Icons/lucide/rotate-cw-fine.png</file>
         <file>Thoth/Icons/lucide/rotate-cw-regular.png</file>
@@ -139,6 +202,9 @@
         <file>Thoth/Icons/lucide/shield-check-expressive.png</file>
         <file>Thoth/Icons/lucide/shield-check-fine.png</file>
         <file>Thoth/Icons/lucide/shield-check-regular.png</file>
+        <file>Thoth/Icons/lucide/sliders-horizontal-expressive.png</file>
+        <file>Thoth/Icons/lucide/sliders-horizontal-fine.png</file>
+        <file>Thoth/Icons/lucide/sliders-horizontal-regular.png</file>
         <file>Thoth/Icons/lucide/square-arrow-out-up-right-expressive.png</file>
         <file>Thoth/Icons/lucide/square-arrow-out-up-right-fine.png</file>
         <file>Thoth/Icons/lucide/square-arrow-out-up-right-regular.png</file>
@@ -149,11 +215,20 @@
         <file>Thoth/Icons/lucide/square-split-horizontal-fine.png</file>
         <file>Thoth/Icons/lucide/square-split-horizontal-regular.png</file>
         <file>Thoth/Icons/lucide/star-expressive.png</file>
+        <file>Thoth/Icons/lucide/star-filled-expressive.png</file>
+        <file>Thoth/Icons/lucide/star-filled-fine.png</file>
+        <file>Thoth/Icons/lucide/star-filled-regular.png</file>
         <file>Thoth/Icons/lucide/star-fine.png</file>
         <file>Thoth/Icons/lucide/star-regular.png</file>
+        <file>Thoth/Icons/lucide/tag-expressive.png</file>
+        <file>Thoth/Icons/lucide/tag-fine.png</file>
+        <file>Thoth/Icons/lucide/tag-regular.png</file>
         <file>Thoth/Icons/lucide/trash-2-expressive.png</file>
         <file>Thoth/Icons/lucide/trash-2-fine.png</file>
         <file>Thoth/Icons/lucide/trash-2-regular.png</file>
+        <file>Thoth/Icons/lucide/user-expressive.png</file>
+        <file>Thoth/Icons/lucide/user-fine.png</file>
+        <file>Thoth/Icons/lucide/user-regular.png</file>
         <file>Thoth/Icons/lucide/volume-2-expressive.png</file>
         <file>Thoth/Icons/lucide/volume-2-fine.png</file>
         <file>Thoth/Icons/lucide/volume-2-regular.png</file>
@@ -163,10 +238,10 @@
         <file>Thoth/Icons/lucide/x-expressive.png</file>
         <file>Thoth/Icons/lucide/x-fine.png</file>
         <file>Thoth/Icons/lucide/x-regular.png</file>
+        <file>Thoth/Icons/lucide/zap-expressive.png</file>
+        <file>Thoth/Icons/lucide/zap-fine.png</file>
+        <file>Thoth/Icons/lucide/zap-regular.png</file>
         <file>Thoth/Icons/lucide/LICENSE</file>
         <file>Thoth/Icons/lucide/manifest.json</file>
-        <file>Thoth/Icons/lucide/star-filled-fine.png</file>
-        <file>Thoth/Icons/lucide/star-filled-regular.png</file>
-        <file>Thoth/Icons/lucide/star-filled-expressive.png</file>
     </qresource>
 </RCC>

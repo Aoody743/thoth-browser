@@ -139,6 +139,31 @@ static QString chrome_icon_name(ChromeIcon icon)
     case ChromeIcon::Update: return QStringLiteral("cloud-download");
     case ChromeIcon::Help: return QStringLiteral("circle-help");
     case ChromeIcon::SelectAll: return QStringLiteral("square");
+    case ChromeIcon::Compass: return QStringLiteral("compass");
+    case ChromeIcon::Bookmark: return QStringLiteral("bookmark");
+    case ChromeIcon::Clock: return QStringLiteral("clock");
+    case ChromeIcon::Heart: return QStringLiteral("heart");
+    case ChromeIcon::Layers: return QStringLiteral("layers");
+    case ChromeIcon::Zap: return QStringLiteral("zap");
+    case ChromeIcon::Flame: return QStringLiteral("flame");
+    case ChromeIcon::Feather: return QStringLiteral("feather");
+    case ChromeIcon::Anchor: return QStringLiteral("anchor");
+    case ChromeIcon::Gem: return QStringLiteral("gem");
+    case ChromeIcon::FolderClosed: return QStringLiteral("folder-closed");
+    case ChromeIcon::Image: return QStringLiteral("image");
+    case ChromeIcon::Tag: return QStringLiteral("tag");
+    case ChromeIcon::Code: return QStringLiteral("code");
+    case ChromeIcon::User: return QStringLiteral("user");
+    case ChromeIcon::Bell: return QStringLiteral("bell");
+    case ChromeIcon::Lightbulb: return QStringLiteral("lightbulb");
+    case ChromeIcon::Printer: return QStringLiteral("printer");
+    case ChromeIcon::FileText: return QStringLiteral("file-text");
+    case ChromeIcon::MessageCircle: return QStringLiteral("message-circle");
+    case ChromeIcon::Music: return QStringLiteral("music");
+    case ChromeIcon::Box: return QStringLiteral("box");
+    case ChromeIcon::Archive: return QStringLiteral("archive");
+    case ChromeIcon::Sliders: return QStringLiteral("sliders-horizontal");
+    case ChromeIcon::LayoutGrid: return QStringLiteral("layout-grid");
     }
     Q_UNREACHABLE();
 }

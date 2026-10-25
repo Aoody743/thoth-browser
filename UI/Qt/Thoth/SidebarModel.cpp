@@ -33,7 +33,7 @@ Workspace* SidebarModel::workspace(QString const& id)
 QString SidebarModel::add_workspace(QString name, QString color, QString symbol)
 {
     if (name.trimmed().isEmpty() || !QRegularExpression("^#[0-9a-fA-F]{6}$").match(color).hasMatch()
-        || (symbol != "orbit" && symbol != "book" && symbol != "globe" && symbol != "diamond"))
+        || !QList<QString> { "orbit", "book", "globe", "diamond", "compass", "bookmark", "clock", "heart", "layers", "zap", "flame", "feather", "anchor", "gem" }.contains(symbol))
         return {};
     auto id = new_id();
     workspaces.append({ id, name.trimmed(), color, symbol, {} });
@@ -507,7 +507,7 @@ bool SidebarModel::load(QJsonObject const& json)
             Workspace space { o["id"].toString(), o["name"].toString(), o["color"].toString(), o["symbol"].toString(), o["active"].toString() };
             if (space.id.isEmpty() || ids.contains(space.id) || space.name.trimmed().isEmpty() || !QRegularExpression("^#[0-9a-fA-F]{6}$").match(space.color).hasMatch())
                 return false;
-            if (space.symbol != "orbit" && space.symbol != "book" && space.symbol != "globe" && space.symbol != "diamond")
+            if (!QList<QString> { "orbit", "book", "globe", "diamond", "compass", "bookmark", "clock", "heart", "layers", "zap", "flame", "feather", "anchor", "gem" }.contains(space.symbol))
                 return false;
             ids.insert(space.id);
             next.workspaces.append(space);
